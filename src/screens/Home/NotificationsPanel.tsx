@@ -32,7 +32,7 @@ function resIcon(resource: string, size: number, className: string) {
 
 function ExchangeSummary({ give, get }: { give: Entry; get: Entry }) {
   return (
-    <div className="mt-[12px] rounded-[14px] bg-white/[0.06] px-[14px] py-[12px] flex items-center justify-between">
+    <div className="mt-[12px] rounded-[14px] bg-white/[0.06] px-[14px] py-[12px] flex items-center justify-center gap-[18px]">
       <div className="flex items-center gap-[7px]">
         <span className="text-[12px] text-white/50">Give</span>
         {resIcon(give.resource, 18, 'text-white')}
@@ -42,11 +42,11 @@ function ExchangeSummary({ give, get }: { give: Entry; get: Entry }) {
       </div>
       <SwapIcon size={18} className="text-white/55" />
       <div className="flex items-center gap-[7px]">
-        <span className="text-[12px] text-accent/80">Get</span>
         {resIcon(get.resource, 18, 'text-accent')}
         <span className="text-[22px] font-bold text-accent leading-none">
           {fmt(get)}
         </span>
+        <span className="text-[12px] text-accent/80">Get</span>
       </div>
     </div>
   )
@@ -77,11 +77,11 @@ export default function NotificationsPanel({
       {/* Side drawer — inset from the edges, rounded all around, starting at the
           notification bell's height */}
       <div
-        className={`absolute right-[10px] top-[62px] bottom-[78px] z-50 w-[356px] bg-app rounded-[28px] overflow-hidden shadow-[0_12px_32px_rgba(0,0,0,0.5)] flex flex-col ${
+        className={`absolute right-[10px] top-[62px] bottom-[78px] z-50 w-[320px] bg-app rounded-[28px] overflow-hidden shadow-[0_12px_32px_rgba(0,0,0,0.5)] flex flex-col ${
           closing ? 'anim-panel-out' : 'anim-panel-in'
         }`}
       >
-        <div className="flex items-center justify-between px-[8px] pt-[20px] pb-[14px]">
+        <div className="relative flex items-center justify-center px-[8px] pt-[20px] pb-[14px]">
           <span className="text-[20px] font-semibold text-white">
             Notifications
           </span>
@@ -89,7 +89,7 @@ export default function NotificationsPanel({
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="w-[34px] h-[34px] flex items-center justify-center rounded-full bg-white/10 text-white/80"
+            className="absolute right-[8px] top-[20px] w-[34px] h-[34px] flex items-center justify-center rounded-full bg-white/10 text-white/80"
           >
             <XIcon size={16} />
           </button>
