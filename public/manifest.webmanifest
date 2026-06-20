@@ -1,0 +1,10 @@
+{
+  "name": "Sources",
+  "short_name": "Sources",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "start_url": "/",
+  "icons": []
+}
