@@ -2,23 +2,15 @@ import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import BottomTabBar from '../../components/BottomTabBar'
 import GlassPill from '../../components/GlassPill'
+import NotificationsBell from '../../components/NotificationsBell'
 import DotRing from './DotRing'
 import ExchangeCard from './ExchangeCard'
-import NotificationsPanel from './NotificationsPanel'
 import RequestSheet from './RequestSheet'
-import {
-  loadExchanges,
-  loadNegotiations,
-  loadNotifications,
-  markNotificationsRead,
-  setActiveNavigation,
-  type AppNotification,
-} from './exchanges'
+import { loadExchanges, loadNegotiations, loadResourceLevels } from './exchanges'
 
 const MY_PHOTO = 'https://i.pravatar.cc/150?u=me'
 import {
   ArrowRightIcon,
-  BellIcon,
   FireIcon,
   LightningIcon,
   MenuIcon,
@@ -31,6 +23,9 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t
 const DRAWER_CLOSED_TOP = 636
 const DRAWER_OPEN_TOP = 479
 const DRAWER_RANGE = DRAWER_CLOSED_TOP - DRAWER_OPEN_TOP // 177
+// A second drag from the open state lifts the drawer above the cards, stopping
+// just at the top of the (already pushed-up) cards — their height only.
+const DRAWER_EXPANDED_TOP = 150
 const SNAP = '280ms cubic-bezier(.22,.61,.36,1)'
 
 type CardKind = 'power' | 'fuel'
@@ -137,34 +132,21 @@ type DragState = {
 
 export default function Home() {
   const navigate = useNavigate()
-  const [progress, setProgress] = useState(0) // 0 = closed, 1 = open
+  const [exchanges] = useState(loadExchanges)
+  const [negotiations] = useState(loadNegotiations)
+  const [levels] = useState(loadResourceLevels)
+  // Open the drawer on load when there are offers to show.
+  const hasOffers = exchanges.length > 0 || negotiations.length > 0
+  const [progress, setProgress] = useState(hasOffers ? 1 : 0) // 0 = closed, 1 = open
+  // Third level: lifted above the cards. Only reachable by a second drag.
+  const [expanded, setExpanded] = useState(false)
   const [dragging, setDragging] = useState(false)
   const [requestSheet, setRequestSheet] = useState<'Power' | 'Fuel' | null>(null)
   const [activeTab, setActiveTab] = useState<'requests' | 'negotiations'>(
-    'requests',
+    exchanges.length === 0 && negotiations.length > 0
+      ? 'negotiations'
+      : 'requests',
   )
-  const [exchanges] = useState(loadExchanges)
-  const [negotiations] = useState(loadNegotiations)
-  const [notifs, setNotifs] = useState(loadNotifications)
-  const [notifOpen, setNotifOpen] = useState(false)
-  const hasUnread = notifs.some((n) => !n.read)
-
-  function openNotifications() {
-    setNotifOpen(true)
-    markNotificationsRead()
-    setNotifs(loadNotifications())
-  }
-
-  function startNavigation(n: AppNotification) {
-    setActiveNavigation({
-      userName: n.userName,
-      userSeed: n.userSeed,
-      userPhoto: n.userPhoto,
-      give: n.give,
-      get: n.get,
-    })
-    navigate('/map')
-  }
   const drag = useRef<DragState | null>(null)
 
   function onPointerDown(e: React.PointerEvent) {
@@ -188,8 +170,12 @@ export default function Home() {
       setDragging(true)
     }
     if (s.movedEnough) {
-      const next = s.startProgress + deltaY / DRAWER_RANGE
-      setProgress(Math.max(0, Math.min(1, next)))
+      // Live drag only drives the closed↔open range; the lift to the expanded
+      // level snaps on release so it cleanly overlays the cards.
+      if (!expanded) {
+        const next = s.startProgress + deltaY / DRAWER_RANGE
+        setProgress(Math.max(0, Math.min(1, next)))
+      }
       const now = performance.now()
       const dt = now - s.lastTime
       if (dt > 0) s.velocity = (s.lastY - e.clientY) / dt
@@ -206,15 +192,27 @@ export default function Home() {
       return
     }
     if (s.movedEnough) {
-      let target = progress > 0.5 ? 1 : 0
-      if (s.velocity > 0.4) target = 1
-      else if (s.velocity < -0.4) target = 0
-      setProgress(target)
+      const dy = s.startY - s.lastY // up = positive
+      if (expanded) {
+        // From the expanded level, a downward drag drops back to open.
+        if (dy < -50 || s.velocity < -0.4) setExpanded(false)
+      } else if (s.startProgress > 0.95 && (dy > 50 || s.velocity > 0.4)) {
+        // Already open and dragged up again → lift above the cards.
+        setExpanded(true)
+        setProgress(1)
+      } else {
+        let target = progress > 0.5 ? 1 : 0
+        if (s.velocity > 0.4) target = 1
+        else if (s.velocity < -0.4) target = 0
+        setProgress(target)
+      }
     }
     setDragging(false)
   }
 
-  const drawerTop = lerp(DRAWER_CLOSED_TOP, DRAWER_OPEN_TOP, progress)
+  const drawerTop = expanded
+    ? DRAWER_EXPANDED_TOP
+    : lerp(DRAWER_CLOSED_TOP, DRAWER_OPEN_TOP, progress)
   const drawerT = dragging ? 'none' : `top ${SNAP}`
   const emptyOpacity = Math.max(0, (progress - 0.55) / 0.45)
   const stopPointer = (e: React.PointerEvent) => e.stopPropagation()
@@ -231,24 +229,14 @@ export default function Home() {
             12:30 PM
           </span>
         </GlassPill>
-        <button
-          type="button"
-          onClick={openNotifications}
-          aria-label="Notifications"
-          className="relative text-textPrimary p-1 -mr-1"
-        >
-          <BellIcon size={26} />
-          {hasUnread && (
-            <span className="absolute top-[2px] right-[2px] w-[10px] h-[10px] rounded-full bg-accent border-2 border-app" />
-          )}
-        </button>
+        <NotificationsBell />
       </div>
 
       {/* Cards */}
       <ResourceCard
         kind="power"
         label="Power"
-        percent={78}
+        percent={levels.power}
         remaining="12H Left"
         progress={progress}
         dragging={dragging}
@@ -257,7 +245,7 @@ export default function Home() {
       <ResourceCard
         kind="fuel"
         label="Fuel"
-        percent={19}
+        percent={levels.fuel}
         remaining="4H Left"
         requestActive
         progress={progress}
@@ -267,7 +255,7 @@ export default function Home() {
 
       {/* Drawer */}
       <div
-        className="absolute left-0 right-0 bottom-0 bg-sheet text-sheetText rounded-t-sheet shadow-[0_-4px_20px_rgba(0,0,0,0.18)]"
+        className="absolute left-[5px] right-[5px] bottom-0 bg-sheet text-sheetText rounded-t-sheet shadow-[0_-4px_20px_rgba(0,0,0,0.18)]"
         style={{ top: drawerTop, transition: drawerT }}
       >
         {/* Drag-handle area: covers the header strip; tap-targets inside stop propagation */}
@@ -359,15 +347,6 @@ export default function Home() {
 
       {/* Bottom tab bar (always on top of drawer) */}
       <BottomTabBar active="home" />
-
-      {/* Notifications side drawer */}
-      {notifOpen && (
-        <NotificationsPanel
-          notifications={notifs}
-          onClose={() => setNotifOpen(false)}
-          onNavigate={startNavigation}
-        />
-      )}
 
       {/* Request sheet — slides up from bottom over Home */}
       {requestSheet !== null && (

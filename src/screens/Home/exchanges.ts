@@ -88,3 +88,30 @@ export function setActiveNavigation(nav: ActiveNavigation): void {
 export function loadActiveNavigation(): ActiveNavigation | null {
   return loadJSON<ActiveNavigation | null>(NAV_KEY, null)
 }
+
+// ── Core resource levels (Power / Fuel %) ──────────────────────────────────
+// Persisted so completing an exchange raises the gauges shown on Home and in
+// the header status pill across the app.
+
+export type ResourceLevels = { power: number; fuel: number }
+
+const LEVELS_KEY = 'resourceLevels'
+const DEFAULT_LEVELS: ResourceLevels = { power: 78, fuel: 19 }
+
+export function loadResourceLevels(): ResourceLevels {
+  return loadJSON<ResourceLevels>(LEVELS_KEY, DEFAULT_LEVELS)
+}
+
+// How much each received unit raises the matching gauge (percentage points).
+const GAIN_PER_UNIT: Record<string, number> = { Power: 5, Fuel: 2 }
+
+/** Apply the resource I received from a completed exchange to my levels. */
+export function applyExchangeGain(get: Entry): void {
+  const per = GAIN_PER_UNIT[get.resource]
+  if (!per) return // only Power and Fuel are core gauges
+  const value = parseFloat(get.amount) || 0
+  const levels = loadResourceLevels()
+  const key = get.resource === 'Power' ? 'power' : 'fuel'
+  const next = Math.min(100, Math.round(levels[key] + value * per))
+  saveJSON(LEVELS_KEY, { ...levels, [key]: next })
+}

@@ -58,6 +58,7 @@ export default function SendRequest({ mode = 'give' }: Props) {
   // Slide the modal up from the bottom when first opened (from the Home plus).
   // Later steps swap content in place, so only the "give" step animates in.
   const [entered, setEntered] = useState(mode !== 'give')
+  const [exiting, setExiting] = useState(false)
   useEffect(() => {
     if (mode !== 'give') return
     const r = requestAnimationFrame(() => setEntered(true))
@@ -78,7 +79,9 @@ export default function SendRequest({ mode = 'give' }: Props) {
   }
 
   function close() {
-    navigate('/home')
+    // Slide the sheet back down before leaving, mirroring the open animation.
+    setExiting(true)
+    setTimeout(() => navigate('/home'), 340)
   }
 
   function back() {
@@ -128,7 +131,7 @@ export default function SendRequest({ mode = 'give' }: Props) {
         <button type="button" className="text-textPrimary p-1 -ml-1">
           <MenuIcon />
         </button>
-        <StatusPill power={78} fuel={19} />
+        <StatusPill />
         <button type="button" className="text-textPrimary p-1 -mr-1">
           <BellIcon size={26} />
         </button>
@@ -138,7 +141,7 @@ export default function SendRequest({ mode = 'give' }: Props) {
       <div
         className="absolute left-0 right-0 top-[130px] bottom-0 bg-sheet text-sheetText rounded-t-[40px] shadow-[0_-4px_20px_rgba(0,0,0,0.18)] will-change-transform"
         style={{
-          transform: entered ? 'translateY(0)' : 'translateY(100%)',
+          transform: entered && !exiting ? 'translateY(0)' : 'translateY(100%)',
           transition: 'transform 340ms cubic-bezier(.22,.61,.36,1)',
         }}
       >

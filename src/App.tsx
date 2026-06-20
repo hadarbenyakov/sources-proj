@@ -9,7 +9,7 @@ import Arrived from './screens/Arrived/Arrived'
 export default function App() {
   return (
     <div className="min-h-screen w-full bg-white flex justify-center">
-      <div className="w-[393px] min-h-[852px] relative overflow-hidden">
+      <div id="app-frame" className="w-[393px] min-h-[852px] relative overflow-hidden">
         <Routes>
           <Route path="/" element={<Navigate to="/home" replace />} />
           <Route path="/home" element={<Home />} />

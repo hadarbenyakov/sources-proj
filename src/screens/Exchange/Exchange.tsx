@@ -2,9 +2,9 @@ import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Avatar from '../../components/Avatar'
 import BottomTabBar from '../../components/BottomTabBar'
+import NotificationsBell from '../../components/NotificationsBell'
 import StatusPill from '../../components/StatusPill'
 import {
-  BellIcon,
   FireIcon,
   LightningIcon,
   MealIcon,
@@ -25,7 +25,7 @@ const SHEET_CLOSED_HEIGHT = 103
 const SHEET_OPEN_HEIGHT = 288
 // Expanded (negotiation form) — raised so the swipe row clears the tab bar.
 const SHEET_FORM_TOP = 250
-const SHEET_FORM_HEIGHT = 595
+const SHEET_FORM_HEIGHT = 602
 const SHEET_TRANSITION = 'top 280ms cubic-bezier(.22,.61,.36,1), height 280ms cubic-bezier(.22,.61,.36,1)'
 
 function ResourceIcon({ r, size = 22, className }: { r: Resource; size?: number; className?: string }) {
@@ -172,11 +172,14 @@ export default function Exchange() {
     dragRef.current = null
     if (!s) return
     const dy = s.startY - e.clientY // up = positive
+    const isTap = Math.abs(dy) < 10
     const canExpand = selected?.gives != null
     if (!expanded) {
-      if (dy > 50 && canExpand) setExpanded(true)
+      // Tap or swipe-up both expand the drawer to full (form) size.
+      if ((dy > 50 || isTap) && canExpand) setExpanded(true)
       else if (dy < -50) setSelectedId(null)
-    } else if (dy < -50) {
+    } else if (dy < -50 || isTap) {
+      // Tap on the handle or swipe-down collapses back to the peek drawer.
       setExpanded(false)
     }
   }
@@ -188,10 +191,8 @@ export default function Exchange() {
         <button type="button" className="text-textPrimary p-1 -ml-1">
           <MenuIcon />
         </button>
-        <StatusPill power={78} fuel={19} />
-        <button type="button" className="text-textPrimary p-1 -mr-1">
-          <BellIcon size={26} />
-        </button>
+        <StatusPill />
+        <NotificationsBell />
       </div>
 
       {/* Title + Friends/Neighbors toggle, vertically centered on one row */}
@@ -292,7 +293,17 @@ export default function Exchange() {
         >
           <div className="absolute left-1/2 -translate-x-1/2 top-[20px] w-[51px] h-[4px] rounded-full bg-black/20" />
         </div>
-        {selected && !expanded && <SelectedUserDrawer user={selected} />}
+        {selected && !expanded && (
+          <div
+            className="absolute inset-0 cursor-pointer"
+            style={{ touchAction: 'pan-y' }}
+            onPointerDown={onDrawerPointerDown}
+            onPointerUp={onDrawerPointerUp}
+            onPointerCancel={onDrawerPointerUp}
+          >
+            <SelectedUserDrawer user={selected} />
+          </div>
+        )}
         {selected && expanded && (
           <NegotiateForm
             key={selected.id}

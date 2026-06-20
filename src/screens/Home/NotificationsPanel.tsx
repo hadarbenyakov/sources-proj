@@ -1,13 +1,65 @@
 import Avatar from '../../components/Avatar'
-import { MapIcon, XIcon } from './icons'
-import type { AppNotification } from './exchanges'
+import {
+  FireIcon,
+  LightningIcon,
+  MapIcon,
+  MealIcon,
+  SwapIcon,
+  WaterDropIcon,
+  XIcon,
+} from './icons'
+import type { AppNotification, Entry } from './exchanges'
+
+const UNIT_SUFFIX: Record<string, string> = {
+  Fuel: 'L',
+  Water: 'L',
+  Power: '',
+  Meals: '',
+}
+
+function fmt(e: Entry): string {
+  // Some amounts already carry a unit (e.g. "5L"); only append for bare numbers.
+  if (/[a-zA-Z]$/.test(e.amount)) return e.amount
+  return `${e.amount}${UNIT_SUFFIX[e.resource] ?? ''}`
+}
+
+function resIcon(resource: string, size: number, className: string) {
+  if (resource === 'Fuel') return <FireIcon size={size} className={className} />
+  if (resource === 'Power') return <LightningIcon size={size} className={className} />
+  if (resource === 'Water') return <WaterDropIcon size={size} className={className} />
+  return <MealIcon size={size} className={className} />
+}
+
+function ExchangeSummary({ give, get }: { give: Entry; get: Entry }) {
+  return (
+    <div className="mt-[12px] rounded-[14px] bg-white/[0.06] px-[14px] py-[12px] flex items-center justify-between">
+      <div className="flex items-center gap-[7px]">
+        <span className="text-[12px] text-white/50">Give</span>
+        {resIcon(give.resource, 18, 'text-white')}
+        <span className="text-[22px] font-bold text-white leading-none">
+          {fmt(give)}
+        </span>
+      </div>
+      <SwapIcon size={18} className="text-white/55" />
+      <div className="flex items-center gap-[7px]">
+        <span className="text-[12px] text-accent/80">Get</span>
+        {resIcon(get.resource, 18, 'text-accent')}
+        <span className="text-[22px] font-bold text-accent leading-none">
+          {fmt(get)}
+        </span>
+      </div>
+    </div>
+  )
+}
 
 export default function NotificationsPanel({
   notifications,
+  closing = false,
   onClose,
   onNavigate,
 }: {
   notifications: AppNotification[]
+  closing?: boolean
   onClose: () => void
   onNavigate: (n: AppNotification) => void
 }) {
@@ -15,14 +67,21 @@ export default function NotificationsPanel({
     <>
       {/* Backdrop */}
       <div
-        className="absolute inset-0 z-40 bg-black/40"
+        className={`absolute inset-0 z-40 bg-black/40 ${
+          closing ? 'anim-screen-out' : 'anim-screen-in'
+        }`}
         onClick={onClose}
         aria-hidden
       />
 
-      {/* Side drawer (top-right, sized to content, rounded bottom corners) */}
-      <div className="absolute right-0 top-0 z-50 w-[322px] bg-app rounded-b-[32px] overflow-hidden shadow-[-8px_8px_28px_rgba(0,0,0,0.45)] flex flex-col">
-        <div className="flex items-center justify-between px-[20px] pt-[64px] pb-[14px]">
+      {/* Side drawer — inset from the edges, rounded all around, starting at the
+          notification bell's height */}
+      <div
+        className={`absolute right-[10px] top-[62px] bottom-[78px] z-50 w-[356px] bg-app rounded-[28px] overflow-hidden shadow-[0_12px_32px_rgba(0,0,0,0.5)] flex flex-col ${
+          closing ? 'anim-panel-out' : 'anim-panel-in'
+        }`}
+      >
+        <div className="flex items-center justify-between px-[8px] pt-[20px] pb-[14px]">
           <span className="text-[20px] font-semibold text-white">
             Notifications
           </span>
@@ -37,7 +96,7 @@ export default function NotificationsPanel({
         </div>
 
         <div
-          className="max-h-[340px] overflow-y-auto px-[16px] pb-[20px] flex flex-col gap-[12px]"
+          className="flex-1 overflow-y-auto px-[4px] pb-[20px] flex flex-col gap-[12px]"
           style={{ scrollbarWidth: 'none' }}
         >
           {notifications.length === 0 ? (
@@ -46,7 +105,7 @@ export default function NotificationsPanel({
             </p>
           ) : (
             notifications.map((n) => (
-              <div key={n.id} className="bg-card rounded-[20px] p-[16px]">
+              <div key={n.id} className="bg-card rounded-[20px] px-[10px] py-[14px]">
                 <div className="flex items-center gap-[10px]">
                   <Avatar
                     name={n.userName}
@@ -63,6 +122,10 @@ export default function NotificationsPanel({
                     </p>
                   </div>
                 </div>
+
+                {/* Offered exchange quantities */}
+                <ExchangeSummary give={n.give} get={n.get} />
+
                 <button
                   type="button"
                   onClick={() => onNavigate(n)}

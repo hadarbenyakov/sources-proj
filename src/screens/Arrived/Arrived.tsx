@@ -10,7 +10,7 @@ import {
   SwapIcon,
   WaterDropIcon,
 } from '../Home/icons'
-import { loadActiveNavigation } from '../Home/exchanges'
+import { applyExchangeGain, loadActiveNavigation } from '../Home/exchanges'
 
 // Exact orange from this frame's Figma ground truth (node 961:3026). Other
 // screens use an approximated accent (#ff5f1f); this screen uses the real value.
@@ -58,7 +58,7 @@ export default function Arrived() {
         <button type="button" className="text-textPrimary p-1 -ml-1">
           <MenuIcon />
         </button>
-        <StatusPill power={78} fuel={19} />
+        <StatusPill />
         <button type="button" className="text-textPrimary p-1 -mr-1">
           <BellIcon size={26} />
         </button>
@@ -119,8 +119,11 @@ export default function Arrived() {
         {/* Confirm CTA */}
         <button
           type="button"
-          // TODO: route to a dedicated exchange-complete screen once it exists
-          onClick={() => navigate('/home')}
+          onClick={() => {
+            // Completing the exchange credits the resource I received.
+            applyExchangeGain(get)
+            navigate('/home')
+          }}
           className="absolute left-1/2 -translate-x-1/2 top-[430px] w-[347px] h-[48px] rounded-[61px] flex items-center justify-center text-white text-[16px] font-medium"
           style={{ backgroundColor: ORANGE }}
         >

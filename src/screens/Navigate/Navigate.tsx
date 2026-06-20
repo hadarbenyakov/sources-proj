@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import Avatar from '../../components/Avatar'
 import BottomTabBar from '../../components/BottomTabBar'
+import NotificationsBell from '../../components/NotificationsBell'
 import StatusPill from '../../components/StatusPill'
 import {
-  BellIcon,
   FireIcon,
   LightningIcon,
   MealIcon,
@@ -12,13 +13,24 @@ import {
   TurnLeftIcon,
   WaterDropIcon,
 } from '../Home/icons'
-import { loadActiveNavigation } from '../Home/exchanges'
+import {
+  loadNegotiations,
+  setActiveNavigation,
+  type ActiveNavigation,
+} from '../Home/exchanges'
+import { FRIENDS, type ExchangeUser, type Offer } from '../Exchange/data'
 
 const UNIT_SUFFIX: Record<string, string> = {
   Fuel: 'L',
   Water: 'L',
   Power: '',
   Meals: '',
+}
+
+function fmtOffer(o: Offer): string {
+  // Some amounts already carry a unit (e.g. "5L"); only append for bare numbers.
+  if (/[a-zA-Z]$/.test(o.amount)) return o.amount
+  return `${o.amount}${UNIT_SUFFIX[o.resource] ?? ''}`
 }
 
 function resIcon(resource: string, size: number, className: string) {
@@ -28,13 +40,51 @@ function resIcon(resource: string, size: number, className: string) {
   return <MealIcon size={size} className={className} />
 }
 
-type Mode = 'collapsed' | 'expanded' | 'walking'
+// A road network polyline traced over the map image (map-layer coords, 393×682):
+// from my position at the bottom, up the left-side road, east along the
+// "Trafalgar Sq" road, then down "Charing Cross". Markers sit on its vertices
+// and routes are sub-paths of it, so every route stays on real streets.
+type Pt = { x: number; y: number }
+const ROUTE_POINTS: Pt[] = [
+  { x: 52, y: 120 }, // 0  START — me, top-left
+  { x: 95, y: 199 }, // 1  down to the Trafalgar Sq road
+  { x: 147, y: 186 }, // 2  east along Trafalgar Sq
+  { x: 199, y: 189 }, // 3
+  { x: 266, y: 199 }, // 4  junction toward Charing Cross
+  { x: 280, y: 284 }, // 5  down Charing Cross
+  { x: 289, y: 378 }, // 6
+  { x: 285, y: 445 }, // 7
+]
 
-const DRAWER_TOP: Record<Mode, number> = {
-  collapsed: 678,
-  expanded: 538,
-  walking: 606,
+// People with offers at their original map positions. `routeIndex` is how far
+// along the road polyline to travel before turning off toward the marker, so
+// each route still follows real streets up to a short final connector.
+const MARKERS: Array<{
+  user: ExchangeUser
+  left: number
+  top: number
+  routeIndex: number
+}> = (() => {
+  const withOffers = FRIENDS.filter((u) => u.gives && u.wants)
+  const placed = [
+    { left: 250, top: 222, routeIndex: 3 },
+    { left: 120, top: 300, routeIndex: 1 },
+    { left: 305, top: 360, routeIndex: 5 },
+    { left: 90, top: 430, routeIndex: 1 },
+    { left: 200, top: 500, routeIndex: 5 },
+  ]
+  return placed.map((p, i) => ({ user: withOffers[i], ...p }))
+})()
+
+function pointsToPath(pts: Pt[]): string {
+  return pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
 }
+
+type Mode = 'browsing' | 'walking'
+
+const DRAWER_TOP_BROWSING = 636
+const DRAWER_TOP_SELECTED = 520
+const DRAWER_TOP_WALKING = 606
 const SHEET_TRANSITION = 'top 280ms cubic-bezier(.22,.61,.36,1)'
 
 function NavChip({
@@ -76,37 +126,35 @@ function NavChip({
   )
 }
 
-// Centerline of the route, extracted from public/route.svg's vertices (same
-// viewBox 272.865×389.268) so the dots sit exactly where the solid line was.
-// Ordered start (bottom = my position) → destination (top-right).
-const ROUTE_CENTERLINE =
-  'M 22.4 388.2 L 3.4 316.7 L 28.9 287.7 L 164.4 251.7 L 211.9 197.2 L 199.9 96.2 L 190.9 48.2 L 221.9 3.7 L 270.4 15.7'
-// Same path reversed (destination → me). Used for the eat mask so the dots are
-// consumed from MY side (behind the walker), not from the destination side.
-const ROUTE_CENTERLINE_REVERSED =
-  'M 270.4 15.7 L 221.9 3.7 L 190.9 48.2 L 199.9 96.2 L 211.9 197.2 L 164.4 251.7 L 28.9 287.7 L 3.4 316.7 L 22.4 388.2'
 const WALK_DUR = '12s'
+const MY_PHOTO = 'https://i.pravatar.cc/150?u=me'
 
 /**
- * Walking route: static dots sitting on the selected route, "eaten" Pac-Man
- * style as the walker (me) advances toward the destination. The mask reveals
- * only the segment ahead of the walker (white = [frontier, 1]); behind the
- * walker the dots are consumed.
+ * Walking route, drawn in the map layer's own coordinate space (393×682),
+ * following the road polyline from my start to the selected person's marker.
+ * Dots are "eaten" Pac-Man style as the walker (me — my photo) advances; the
+ * mask reveals only the segment ahead of the walker.
  */
-function DottedRoute() {
+function DottedRoute({ pts }: { pts: Pt[] }) {
+  const forward = pointsToPath(pts)
+  const reversed = pointsToPath([...pts].reverse())
   return (
     <svg
       className="absolute pointer-events-none"
-      style={{ left: 81, top: 214, width: 268, height: 386 }}
-      viewBox="0 0 272.865 389.268"
+      style={{ left: 0, top: 0, width: 393, height: 682 }}
+      viewBox="0 0 393 682"
     >
       <defs>
+        <clipPath id="walker-clip">
+          <circle cx="0" cy="0" r="13" />
+        </clipPath>
         <mask id="route-eat">
           <path
-            d={ROUTE_CENTERLINE_REVERSED}
+            d={reversed}
             stroke="white"
-            strokeWidth="20"
+            strokeWidth="24"
             strokeLinecap="round"
+            strokeLinejoin="round"
             fill="none"
             pathLength={1}
             strokeDasharray="1 1"
@@ -125,7 +173,7 @@ function DottedRoute() {
 
       {/* Dots on the route, masked so only the part ahead of the walker shows */}
       <path
-        d={ROUTE_CENTERLINE}
+        d={forward}
         stroke="white"
         strokeWidth="6"
         strokeLinecap="round"
@@ -134,27 +182,75 @@ function DottedRoute() {
         mask="url(#route-eat)"
       />
 
-      {/* Walker (me) — the Pac-Man head at the eating frontier */}
-      <circle r="9" fill="white" stroke="rgba(0,0,0,0.25)" strokeWidth="1.5">
-        <animateMotion
-          dur={WALK_DUR}
-          repeatCount="indefinite"
-          path={ROUTE_CENTERLINE}
+      {/* Walker (me) — my photo, moving along the route toward the destination */}
+      <g>
+        <animateMotion dur={WALK_DUR} repeatCount="indefinite" path={forward} />
+        <circle r="15" fill="white" stroke="rgba(0,0,0,0.25)" strokeWidth="1.5" />
+        <image
+          href={MY_PHOTO}
+          x="-13"
+          y="-13"
+          width="26"
+          height="26"
+          clipPath="url(#walker-clip)"
+          preserveAspectRatio="xMidYMid slice"
         />
-      </circle>
+      </g>
     </svg>
   )
 }
 
 export default function Navigate() {
   const navigate = useNavigate()
-  // Navigation target comes from the notification CTA (falls back to a default).
-  const nav = loadActiveNavigation()
-  const targetName = nav ? nav.userName.split(' ')[0] : 'Liron'
-  const give = nav?.give ?? { resource: 'Power', amount: '4.2' }
-  const get = nav?.get ?? { resource: 'Fuel', amount: '10' }
-  const [mode, setMode] = useState<Mode>('collapsed')
-  const dragRef = useRef<{ startY: number } | null>(null)
+  const location = useLocation()
+  // A navigation target handed in from a notification's "Navigate" CTA via
+  // one-shot router state. When present we pre-select that person so the screen
+  // opens just like tapping them on the map — their offer card up, ready to go.
+  // Plain map visits (e.g. the tab bar) carry no state, so nothing is selected.
+  const nav = useRef(
+    (location.state as { navTarget?: ActiveNavigation } | null)?.navTarget ??
+      null,
+  ).current
+
+  // Markers shown on the map. If the notification's person isn't one of the demo
+  // markers, drop them onto the first marker's spot so they're selectable.
+  const markers = useMemo(() => {
+    if (!nav || MARKERS.some((m) => m.user.fullName === nav.userName)) {
+      return MARKERS
+    }
+    const synthetic: ExchangeUser = {
+      id: nav.userSeed,
+      name: nav.userName,
+      fullName: nav.userName,
+      photo: nav.userPhoto,
+      distance: '650 M',
+      online: true,
+      availableUntil: '19 PM',
+      // They give me nav.get; they want from me nav.give.
+      gives: { resource: nav.get.resource, amount: nav.get.amount },
+      wants: { resource: nav.give.resource, amount: nav.give.amount },
+    }
+    return [{ ...MARKERS[0], user: synthetic }, ...MARKERS.slice(1)]
+  }, [nav])
+
+  const initialSelected = nav
+    ? markers.find((m) => m.user.fullName === nav.userName)?.user.id ?? null
+    : null
+
+  const [mode, setMode] = useState<Mode>('browsing')
+  const [selectedId, setSelectedId] = useState<string | null>(initialSelected)
+  // Offers I've already agreed to (sent a negotiation for) can be navigated to.
+  const acceptedNames = useRef(
+    new Set(loadNegotiations().map((n) => n.userName)),
+  ).current
+
+  const selected = markers.find((m) => m.user.id === selectedId) ?? null
+  const isWalking = mode === 'walking'
+  // From my point of view: I give what they want, I get what they give.
+  const give = selected?.user.wants ?? null
+  const get = selected?.user.gives ?? null
+  const accepted = selected ? acceptedNames.has(selected.user.fullName) : false
+  const targetName = selected ? selected.user.name.split(' ')[0] : ''
 
   // Once walking, the walker reaches the destination after one trip along the
   // route → transition to the "You've Arrived" screen.
@@ -164,22 +260,23 @@ export default function Navigate() {
     return () => clearTimeout(t)
   }, [mode, navigate])
 
-  function onDrawerPointerDown(e: React.PointerEvent) {
-    if (mode === 'walking') return
-    dragRef.current = { startY: e.clientY }
-    ;(e.currentTarget as Element).setPointerCapture(e.pointerId)
-  }
-  function onDrawerPointerUp(e: React.PointerEvent) {
-    const s = dragRef.current
-    dragRef.current = null
-    if (!s) return
-    const dy = s.startY - e.clientY
-    if (dy > 50) setMode('expanded')
-    else if (dy < -50) setMode('collapsed')
+  function startWalking() {
+    if (!selected || !give || !get) return
+    setActiveNavigation({
+      userName: selected.user.fullName,
+      userSeed: selected.user.id,
+      userPhoto: selected.user.photo,
+      give: { resource: give.resource, amount: give.amount },
+      get: { resource: get.resource, amount: get.amount },
+    })
+    setMode('walking')
   }
 
-  const drawerTop = DRAWER_TOP[mode]
-  const isWalking = mode === 'walking'
+  const drawerTop = isWalking
+    ? DRAWER_TOP_WALKING
+    : selected
+      ? DRAWER_TOP_SELECTED
+      : DRAWER_TOP_BROWSING
 
   return (
     <div className="w-[393px] h-[852px] relative bg-app text-textPrimary overflow-hidden select-none">
@@ -188,6 +285,10 @@ export default function Navigate() {
       <div
         className="absolute left-0 top-0 w-[393px] h-[682px] origin-top"
         style={{ transform: 'scale(1.1)' }}
+        onClick={() => {
+          // Tapping the map (outside any marker) dismisses the offer card.
+          if (!isWalking) setSelectedId(null)
+        }}
       >
         <img
           src="/map.png"
@@ -196,34 +297,71 @@ export default function Navigate() {
           className="absolute inset-0 w-full h-full object-cover pointer-events-none"
         />
 
-        {/* Route — solid when planning, dotted (Pac-Man) when walking */}
-        {isWalking ? (
-          <DottedRoute />
-        ) : (
-          <img
-            src="/route.svg"
-            alt=""
-            aria-hidden
-            className="absolute pointer-events-none"
-            style={{ left: 81, top: 214, width: 268, height: 386 }}
+        {/* Route + walker only shown once a destination is chosen and walking */}
+        {isWalking && selected && (
+          <DottedRoute
+            pts={[
+              ...ROUTE_POINTS.slice(0, selected.routeIndex + 1),
+              { x: selected.left, y: selected.top },
+            ]}
           />
         )}
 
-        {/* Destination marker — tap to jump straight to the arrival screen */}
-        <button
-          type="button"
-          aria-label="Arrived at destination"
-          onClick={() => navigate('/arrived')}
-          className="absolute w-[17px] h-[17px] rounded-full bg-accent"
-          style={{ left: 345, top: 222 }}
-        />
-        {/* Start marker — hidden while walking (the moving walker is "me") */}
+        {/* Walking: destination marker (the person I'm heading to) stays put */}
+        {isWalking && selected && (
+          <div
+            className="absolute -translate-x-1/2 -translate-y-1/2 p-[3px] rounded-full bg-accent shadow-[0_2px_8px_rgba(0,0,0,0.35)] pointer-events-none"
+            style={{ left: selected.left, top: selected.top }}
+          >
+            <Avatar
+              name={selected.user.name}
+              size={42}
+              seed={selected.user.id}
+              photo={selected.user.photo}
+            />
+          </div>
+        )}
+
+        {/* Me — always shown at my position (while walking the moving walker
+            represents me instead, so hide this static one) */}
         {!isWalking && (
           <div
-            className="absolute w-[17px] h-[17px] rounded-full bg-white/80 pointer-events-none"
-            style={{ left: 93, top: 592 }}
-          />
+            className="absolute -translate-x-1/2 -translate-y-1/2 p-[3px] rounded-full bg-white shadow-[0_2px_8px_rgba(0,0,0,0.35)] pointer-events-none"
+            style={{ left: ROUTE_POINTS[0].x, top: ROUTE_POINTS[0].y }}
+          >
+            <Avatar name="You" size={42} seed="me" photo={MY_PHOTO} />
+          </div>
         )}
+
+        {/* People offer markers (hidden while walking) */}
+        {!isWalking &&
+          markers.map((m) => {
+            const isSel = m.user.id === selectedId
+            return (
+              <button
+                key={m.user.id}
+                type="button"
+                aria-label={`Offer from ${m.user.fullName}`}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setSelectedId((prev) => (prev === m.user.id ? null : m.user.id))
+                }}
+                className="absolute -translate-x-1/2 -translate-y-1/2"
+                style={{ left: m.left, top: m.top }}
+              >
+                <div
+                  className={`p-[3px] rounded-full ${isSel ? 'bg-accent' : 'bg-white'} shadow-[0_2px_8px_rgba(0,0,0,0.35)]`}
+                >
+                  <Avatar
+                    name={m.user.name}
+                    size={42}
+                    seed={m.user.id}
+                    photo={m.user.photo}
+                  />
+                </div>
+              </button>
+            )
+          })}
       </div>
 
       {/* Header */}
@@ -231,10 +369,8 @@ export default function Navigate() {
         <button type="button" className="text-textPrimary p-1 -ml-1">
           <MenuIcon />
         </button>
-        <StatusPill power={78} fuel={19} />
-        <button type="button" className="text-textPrimary p-1 -mr-1">
-          <BellIcon size={26} />
-        </button>
+        <StatusPill />
+        <NotificationsBell />
       </div>
 
       {/* Bottom drawer */}
@@ -242,65 +378,68 @@ export default function Navigate() {
         className="absolute left-[5px] right-[4px] bottom-0 bg-sheet rounded-t-[40px] shadow-[0_-4px_20px_rgba(0,0,0,0.18)]"
         style={{ top: drawerTop, transition: SHEET_TRANSITION }}
       >
-        {/* Drag area (hidden in walking mode) */}
-        {!isWalking && (
-          <div
-            className="absolute left-0 right-0 top-0 h-[36px] cursor-grab"
-            style={{ touchAction: 'pan-y' }}
-            onPointerDown={onDrawerPointerDown}
-            onPointerUp={onDrawerPointerUp}
-            onPointerCancel={onDrawerPointerUp}
-          >
-            <div className="absolute left-1/2 -translate-x-1/2 top-[20px] w-[51px] h-[4px] rounded-full bg-black/20" />
+        <div className="absolute left-1/2 -translate-x-1/2 top-[20px] w-[51px] h-[4px] rounded-full bg-black/20" />
+
+        {/* Browsing, nothing selected → hint */}
+        {!isWalking && !selected && (
+          <div className="absolute left-0 right-0 top-[40px] flex flex-col items-center text-center px-[24px]">
+            <span className="text-[18px] font-semibold text-black">
+              Offers near you
+            </span>
+            <span className="text-[13px] text-black/55 mt-[8px] max-w-[250px] leading-[18px]">
+              Tap a person on the map to see their exchange offer
+            </span>
           </div>
         )}
 
-        {/* Planning content (collapsed + expanded) */}
-        {!isWalking && (
+        {/* Selected offer card */}
+        {!isWalking && selected && give && get && (
           <>
-            <div className="absolute left-[33px] right-[33px] top-[36px]">
-              <div className="flex items-baseline justify-between">
-                <span className="text-[20px] font-semibold text-black">
-                  Navigate to {targetName}
+            <div className="absolute left-[33px] right-[33px] top-[40px] flex items-center gap-[10px]">
+              <Avatar
+                name={selected.user.name}
+                size={42}
+                seed={selected.user.id}
+                photo={selected.user.photo}
+              />
+              <div className="flex flex-col">
+                <span className="text-[18px] font-semibold text-black leading-tight">
+                  {selected.user.fullName}
                 </span>
-                <span className="text-[18px] font-medium text-black">
-                  9 Min walk
+                <span className="text-[13px] text-black/55 leading-tight">
+                  Herzel 112, Tel aviv · {selected.user.distance}
                 </span>
-              </div>
-              <div className="flex items-center justify-between mt-[8px]">
-                <span className="text-[13px] text-black/55">
-                  Herzel 112, Tel aviv
-                </span>
-                <span className="text-[13px] text-black/55">650 M</span>
               </div>
             </div>
 
-            {mode === 'expanded' && (
-              <>
-                <div className="absolute left-[33px] right-[33px] top-[104px] flex items-center justify-between">
-                  <NavChip
-                    label="You Give"
-                    icon={resIcon(give.resource, 20, 'text-black')}
-                    value={`${give.amount}${UNIT_SUFFIX[give.resource] ?? ''}`}
-                    variant="plain"
-                  />
-                  <SwapIcon size={24} className="text-black" />
-                  <NavChip
-                    label="You Gets"
-                    icon={resIcon(get.resource, 20, 'text-white')}
-                    value={`${get.amount}${UNIT_SUFFIX[get.resource] ?? ''}`}
-                    variant="accent"
-                  />
-                </div>
+            <div className="absolute left-[33px] right-[33px] top-[110px] flex items-center justify-between">
+              <NavChip
+                label="You Give"
+                icon={resIcon(give.resource, 20, 'text-black')}
+                value={fmtOffer(give)}
+                variant="plain"
+              />
+              <SwapIcon size={24} className="text-black" />
+              <NavChip
+                label="You Get"
+                icon={resIcon(get.resource, 20, 'text-white')}
+                value={fmtOffer(get)}
+                variant="accent"
+              />
+            </div>
 
-                <button
-                  type="button"
-                  onClick={() => setMode('walking')}
-                  className="absolute left-[23px] right-[23px] top-[182px] h-[48px] rounded-pill bg-accent text-white text-[16px] font-bold"
-                >
-                  Start Walking
-                </button>
-              </>
+            {accepted ? (
+              <button
+                type="button"
+                onClick={startWalking}
+                className="absolute left-[23px] right-[23px] top-[188px] h-[48px] rounded-pill bg-accent text-white text-[16px] font-bold"
+              >
+                Navigate to {targetName}
+              </button>
+            ) : (
+              <div className="absolute left-[23px] right-[23px] top-[188px] h-[48px] rounded-pill bg-black/[0.06] flex items-center justify-center text-[13px] text-black/55 text-center px-[16px]">
+                Agree to this offer on the Exchange page to navigate
+              </div>
             )}
           </>
         )}
@@ -335,7 +474,10 @@ export default function Navigate() {
               </div>
               <button
                 type="button"
-                onClick={() => setMode('collapsed')}
+                onClick={() => {
+                  setMode('browsing')
+                  setSelectedId(null)
+                }}
                 className="h-[36px] px-[20px] rounded-pill bg-accent text-white text-[14px] font-bold"
               >
                 Exit

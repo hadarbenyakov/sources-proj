@@ -1,17 +1,24 @@
 import DotRing from '../screens/Home/DotRing'
+import { loadResourceLevels } from '../screens/Home/exchanges'
 import GlassPill from './GlassPill'
 
 type Props = {
-  power: number
-  fuel: number
+  power?: number
+  fuel?: number
 }
 
 /**
  * Header status pill — Power + Fuel %, each with a dotted ring, on the shared
  * liquid-glass surface. Figma node 925:2345: p-10, rounded-30, 23px gap between
  * groups. Labels are bold white — "P" 18px + "78%" 14px.
+ *
+ * Defaults to the persisted resource levels so completed exchanges are
+ * reflected everywhere the pill appears.
  */
-export default function StatusPill({ power, fuel }: Props) {
+export default function StatusPill(props: Props) {
+  const levels = loadResourceLevels()
+  const power = props.power ?? levels.power
+  const fuel = props.fuel ?? levels.fuel
   return (
     <GlassPill className="h-[43px] w-[204px] justify-center gap-[23px]">
       <div className="flex items-center gap-[4px]">
