@@ -16,7 +16,6 @@ import {
   WaterDropIcon,
 } from '../Home/icons'
 import {
-  loadNegotiations,
   setActiveNavigation,
   type ActiveNavigation,
 } from '../Home/exchanges'
@@ -48,7 +47,7 @@ function resIcon(resource: string, size: number, className: string) {
 // and routes are sub-paths of it, so every route stays on real streets.
 type Pt = { x: number; y: number }
 const ROUTE_POINTS: Pt[] = [
-  { x: 52, y: 120 }, // 0  START — me, top-left
+  { x: 196, y: 330 }, // 0  START — me, center
   { x: 95, y: 199 }, // 1  down to the Trafalgar Sq road
   { x: 147, y: 186 }, // 2  east along Trafalgar Sq
   { x: 199, y: 189 }, // 3
@@ -253,18 +252,11 @@ export default function Navigate() {
 
   const [mode, setMode] = useState<Mode>('browsing')
   const [selectedId, setSelectedId] = useState<string | null>(initialSelected)
-  // Offers I've already agreed to (sent a negotiation for) can be navigated to.
-  const acceptedNames = useRef(
-    new Set(loadNegotiations().map((n) => n.userName)),
-  ).current
-
   const selected = markers.find((m) => m.user.id === selectedId) ?? null
   const isWalking = mode === 'walking'
   // From my point of view: I give what they want, I get what they give.
   const give = selected?.user.wants ?? null
   const get = selected?.user.gives ?? null
-  const accepted = selected ? acceptedNames.has(selected.user.fullName) : false
-  const targetName = selected ? selected.user.name.split(' ')[0] : ''
 
   // Once walking, the walker reaches the destination after one trip along the
   // route → transition to the "You've Arrived" screen.
@@ -467,19 +459,13 @@ export default function Navigate() {
               />
             </div>
 
-            {accepted ? (
-              <button
-                type="button"
-                onClick={startWalking}
-                className="absolute left-[23px] right-[23px] top-[188px] h-[48px] rounded-pill bg-accent text-white text-[16px] font-bold"
-              >
-                Navigate to {targetName}
-              </button>
-            ) : (
-              <div className="absolute left-[23px] right-[23px] top-[188px] h-[48px] rounded-pill bg-black/[0.06] flex items-center justify-center text-[13px] text-black/55 text-center px-[16px]">
-                Agree to this offer on the Exchange page to navigate
-              </div>
-            )}
+            <button
+              type="button"
+              onClick={startWalking}
+              className="absolute left-[23px] right-[23px] top-[188px] h-[48px] rounded-pill bg-accent text-white text-[15px] font-bold"
+            >
+              Confirm Exchange &amp; Pick Up On The Way
+            </button>
           </>
         )}
 
