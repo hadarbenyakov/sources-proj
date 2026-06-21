@@ -148,7 +148,7 @@ export default function SendRequest({ mode = 'give' }: Props) {
         className="absolute left-0 right-0 top-[130px] bottom-0 bg-sheet text-sheetText rounded-t-[40px] shadow-[0_-4px_20px_rgba(0,0,0,0.18)]"
         style={mode === 'get' ? {
           transform: entered && !exiting ? 'translateY(0)' : 'translateY(100%)',
-          transition: 'transform 340ms cubic-bezier(.22,.61,.36,1)',
+          transition: 'transform 400ms cubic-bezier(0.34, 1.56, 0.64, 1)',
         } : undefined}
       >
         {/* Drag handle */}

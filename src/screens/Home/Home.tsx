@@ -26,7 +26,8 @@ const DRAWER_RANGE = DRAWER_CLOSED_TOP - DRAWER_OPEN_TOP // 177
 // A second drag from the open state lifts the drawer above the cards, stopping
 // just at the top of the (already pushed-up) cards — their height only.
 const DRAWER_EXPANDED_TOP = 150
-const SNAP = '280ms cubic-bezier(.22,.61,.36,1)'
+// Gentle, delightful overshoot — drawers settle with a soft little bounce.
+const SNAP = '380ms cubic-bezier(0.34, 1.56, 0.64, 1)'
 
 type CardKind = 'power' | 'fuel'
 
@@ -34,38 +35,44 @@ function ResourceCard({
   kind,
   label,
   percent,
+  fromPercent = 0,
   remaining,
   progress,
   dragging,
   onRequest,
+  onManage,
 }: {
   kind: CardKind
   label: string
   percent: number
+  fromPercent?: number
   remaining: string
   progress: number
   dragging: boolean
   onRequest?: () => void
+  onManage?: () => void
 }) {
-  // Animate the ring filling up each time Home mounts (i.e. on every arrival).
-  // Dots light at a constant cadence (same rate in both rings), so Fuel — which
-  // has fewer filled dots — finishes early while Power keeps going until done.
-  const [ringPercent, setRingPercent] = useState(0)
+  // Animate the ring once on mount: from `fromPercent` (the previous level, or 0
+  // on a normal arrival) up to `percent`. Dots light at a constant cadence, so
+  // only the newly-gained dots are animated after an exchange. Running once with
+  // stable endpoints avoids the restart-every-frame jump.
+  const [ringPercent, setRingPercent] = useState(fromPercent)
   useEffect(() => {
     const RING_DOTS = 14
     const PER_DOT_MS = 85
-    const targetCount = Math.round((percent / 100) * RING_DOTS)
-    const dur = Math.max(1, targetCount * PER_DOT_MS)
+    const toCount = Math.round((percent / 100) * RING_DOTS)
+    const fromCount = Math.round((fromPercent / 100) * RING_DOTS)
+    const dur = Math.max(1, Math.abs(toCount - fromCount) * PER_DOT_MS)
     let raf = 0
     const start = performance.now()
     const tick = (now: number) => {
       const t = Math.min(1, (now - start) / dur)
-      setRingPercent(percent * t) // linear → equal time per dot
+      setRingPercent(fromPercent + (percent - fromPercent) * t) // linear cadence
       if (t < 1) raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
-  }, [percent])
+  }, [percent, fromPercent])
 
   // A resource turns white once it climbs above 50%; below that it's orange.
   const ringColor = percent > 50 ? '#ffffff' : '#ff5f1f'
@@ -119,6 +126,7 @@ function ResourceCard({
           </button>
           <button
             type="button"
+            onClick={onManage}
             className="pl-[12px] pr-[10px] py-[8px] rounded-pill bg-[rgba(78,78,78,0.5)] text-white text-[12px] font-semibold flex items-center gap-[6px]"
           >
             Manage
@@ -155,42 +163,14 @@ type DragState = {
 export default function Home() {
   const navigate = useNavigate()
   const location = useLocation()
+  // Levels to display now; if we just completed an exchange the gauges animate
+  // up from the previous levels (handed in via router state) to these.
   const prevLevels = (location.state as { prevLevels?: ResourceLevels } | null)?.prevLevels
   const currentLevels = loadResourceLevels()
 
   const [exchanges, setExchanges] = useState(loadExchanges)
   const [negotiations] = useState(loadNegotiations)
-  const [displayLevels, setDisplayLevels] = useState<ResourceLevels>(prevLevels ?? currentLevels)
 
-  // Animate gauges from old levels to new levels after an exchange completion
-  useEffect(() => {
-    if (!prevLevels) return
-    const from = prevLevels
-    const to = currentLevels
-    const duration = 1500
-    let rafId: number
-    let startTime: number | null = null
-
-    function tick(now: number) {
-      if (startTime === null) startTime = now
-      const t = Math.min((now - startTime) / duration, 1)
-      const eased = 1 - (1 - t) ** 3 // easeOutCubic
-      setDisplayLevels({
-        power: Math.round(from.power + (to.power - from.power) * eased),
-        fuel: Math.round(from.fuel + (to.fuel - from.fuel) * eased),
-      })
-      if (t < 1) rafId = requestAnimationFrame(tick)
-    }
-
-    const timerId = window.setTimeout(() => {
-      rafId = requestAnimationFrame(tick)
-    }, 500)
-
-    return () => {
-      window.clearTimeout(timerId)
-      cancelAnimationFrame(rafId)
-    }
-  }, [])
   // Open the drawer on load when there are offers to show.
   const hasOffers = exchanges.length > 0 || negotiations.length > 0
   const [progress, setProgress] = useState(hasOffers ? 1 : 0) // 0 = closed, 1 = open
@@ -302,20 +282,32 @@ export default function Home() {
       <ResourceCard
         kind="power"
         label="Power"
-        percent={displayLevels.power}
+        percent={currentLevels.power}
+        fromPercent={prevLevels?.power ?? 0}
         remaining="12H Left"
         progress={progress}
         dragging={dragging}
         onRequest={() => setRequestSheet('Power')}
+        onManage={() =>
+          navigate('/manage', {
+            state: { resource: 'Power', percent: currentLevels.power, remaining: '12H Left' },
+          })
+        }
       />
       <ResourceCard
         kind="fuel"
         label="Fuel"
-        percent={displayLevels.fuel}
+        percent={currentLevels.fuel}
+        fromPercent={prevLevels?.fuel ?? 0}
         remaining="4H Left"
         progress={progress}
         dragging={dragging}
         onRequest={() => setRequestSheet('Fuel')}
+        onManage={() =>
+          navigate('/manage', {
+            state: { resource: 'Fuel', percent: currentLevels.fuel, remaining: '4H Left' },
+          })
+        }
       />
 
       {/* Drawer */}

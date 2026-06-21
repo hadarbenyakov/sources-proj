@@ -14,7 +14,15 @@ import { deleteExchange, updateExchange, type Entry, type MyExchange, type Resou
 const MY_PHOTO = 'https://i.pravatar.cc/150?u=me'
 const SNAP = '320ms cubic-bezier(.22,.61,.36,1)'
 const UNITS: Record<Resource, string> = { Fuel: 'L', Power: 'KWh', Water: 'L', Meals: 'pcs' }
-const UNIT_SUFFIX: Record<Resource, string> = { Fuel: 'L', Water: 'L', Power: '', Meals: '' }
+
+// Split a quantity into its number and unit. Uses the amount's own unit when it
+// already carries one (e.g. "5L"), otherwise the resource's default unit.
+function splitAmount(resource: Resource, amount: string): { num: string; unit: string } {
+  const m = amount.match(/^([\d.]+)\s*([a-zA-Z]*)$/)
+  const num = m ? m[1] : amount
+  const unit = m && m[2] ? m[2] : UNITS[resource]
+  return { num, unit }
+}
 
 function ResIcon({ r, size = 22, className }: { r: Resource; size?: number; className?: string }) {
   if (r === 'Fuel') return <FireIcon size={size} className={className} />
@@ -33,10 +41,13 @@ function Chip({ label, entry, accent }: { label: string; entry: Entry; accent?: 
       <span className={`text-[13px] font-medium leading-none ${accent ? 'text-white' : 'text-black/70'}`}>
         {label}
       </span>
-      <div className="flex items-center gap-[4px] mt-[6px]">
+      <div className="flex items-end gap-[4px] mt-[6px]">
         <ResIcon r={entry.resource} size={22} className={accent ? 'text-white' : 'text-black'} />
         <span className={`text-[22px] font-bold leading-none ${accent ? 'text-white' : 'text-black'}`}>
-          {entry.amount}{UNIT_SUFFIX[entry.resource]}
+          {splitAmount(entry.resource, entry.amount).num}
+        </span>
+        <span className={`text-[12px] font-normal leading-none mb-[1px] ${accent ? 'text-white/90' : 'text-black/70'}`}>
+          {splitAmount(entry.resource, entry.amount).unit}
         </span>
       </div>
     </div>
@@ -105,7 +116,7 @@ export default function EditableExchangeCard({
       {/* Collapsed: chips row */}
       <div style={expandStyle(!isExpanded)}>
         <div className="overflow-hidden">
-          <div className="flex items-center justify-between px-[14px] pb-[14px]">
+          <div className="flex items-center justify-between px-[14px] pt-[2px] pb-[18px]">
             <Chip label="Give" entry={{ resource: giveRes, amount: giveAmount }} />
             <SwapIcon size={20} className="text-black" />
             <Chip label="Gets" entry={{ resource: getRes, amount: getAmount }} accent />
@@ -116,7 +127,7 @@ export default function EditableExchangeCard({
       {/* Expanded: edit UI */}
       <div style={expandStyle(isExpanded)}>
         <div className="overflow-hidden">
-          <div className="flex flex-col gap-[12px] px-[14px] pb-[18px]">
+          <div className="flex flex-col gap-[12px] px-[14px] pt-[4px] pb-[14px]">
 
             {/* Title */}
             <span className="text-[12px] font-semibold text-black/40">

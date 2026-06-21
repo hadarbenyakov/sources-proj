@@ -100,6 +100,21 @@ body,
   animation: chip-in 460ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
+/* Manage gauge — soft scale + fade on entry. */
+@keyframes gauge-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.anim-gauge-pop {
+  animation: gauge-pop 650ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
 /* Notifications side panel slide-in. */
 @keyframes panel-in {
   from {
@@ -112,7 +127,7 @@ body,
   }
 }
 .anim-panel-in {
-  animation: panel-in 280ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  animation: panel-in 420ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
 @keyframes panel-out {

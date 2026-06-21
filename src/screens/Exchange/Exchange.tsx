@@ -25,13 +25,28 @@ const SHEET_CLOSED_TOP = 749
 const SHEET_OPEN_TOP = 520
 // Expanded (negotiation form) — raised so the swipe row clears the tab bar.
 const SHEET_FORM_TOP = 250
-const SHEET_TRANSITION = 'top 280ms cubic-bezier(.22,.61,.36,1)'
+const SHEET_TRANSITION = 'top 380ms cubic-bezier(0.34, 1.56, 0.64, 1)'
 
 function ResourceIcon({ r, size = 22, className }: { r: Resource; size?: number; className?: string }) {
   if (r === 'Fuel') return <FireIcon size={size} className={className} />
   if (r === 'Power') return <LightningIcon size={size} className={className} />
   if (r === 'Water') return <WaterDropIcon size={size} className={className} />
   return <MealIcon size={size} className={className} />
+}
+
+const UNIT_LABEL: Record<Resource, string> = {
+  Fuel: 'L',
+  Water: 'L',
+  Power: 'KWh',
+  Meals: 'pcs',
+}
+
+// Split a quantity into number + unit (uses the amount's own unit when present).
+function splitAmount(resource: Resource, amount: string): { num: string; unit: string } {
+  const m = amount.match(/^([\d.]+)\s*([a-zA-Z]*)$/)
+  const num = m ? m[1] : amount
+  const unit = m && m[2] ? m[2] : UNIT_LABEL[resource]
+  return { num, unit }
 }
 
 function OfferChip({
@@ -57,7 +72,7 @@ function OfferChip({
       >
         {label}
       </span>
-      <div className="flex items-center gap-[4px] mt-[6px]">
+      <div className="flex items-end gap-[4px] mt-[6px]">
         <ResourceIcon
           r={user.resource}
           size={22}
@@ -68,7 +83,14 @@ function OfferChip({
             isAccent ? 'text-white' : 'text-black'
           }`}
         >
-          {user.amount}
+          {splitAmount(user.resource, user.amount).num}
+        </span>
+        <span
+          className={`text-[12px] font-normal leading-none mb-[1px] ${
+            isAccent ? 'text-white/90' : 'text-black/70'
+          }`}
+        >
+          {splitAmount(user.resource, user.amount).unit}
         </span>
       </div>
     </div>

@@ -2,11 +2,20 @@ import Avatar from '../../components/Avatar'
 import { FireIcon, LightningIcon, MealIcon, SwapIcon, WaterDropIcon } from './icons'
 import type { Entry, Resource } from './exchanges'
 
-const UNIT_SUFFIX: Record<Resource, string> = {
+const UNIT_LABEL: Record<Resource, string> = {
   Fuel: 'L',
   Water: 'L',
-  Power: '',
-  Meals: '',
+  Power: 'KWh',
+  Meals: 'pcs',
+}
+
+// Split a quantity into its number and unit. Uses the amount's own unit when it
+// already carries one (e.g. "5L"), otherwise the resource's default unit.
+function splitAmount(resource: Resource, amount: string): { num: string; unit: string } {
+  const m = amount.match(/^([\d.]+)\s*([a-zA-Z]*)$/)
+  const num = m ? m[1] : amount
+  const unit = m && m[2] ? m[2] : UNIT_LABEL[resource]
+  return { num, unit }
 }
 
 function ResIcon({ r, className }: { r: Resource; className?: string }) {
@@ -30,15 +39,21 @@ function Chip({ label, entry, accent }: { label: string; entry: Entry; accent?: 
       >
         {label}
       </span>
-      <div className="flex items-center gap-[4px] mt-[6px]">
+      <div className="flex items-end gap-[4px] mt-[6px]">
         <ResIcon r={entry.resource} className={accent ? 'text-white' : 'text-black'} />
         <span
           className={`text-[22px] font-bold leading-none ${
             accent ? 'text-white' : 'text-black'
           }`}
         >
-          {entry.amount}
-          {UNIT_SUFFIX[entry.resource]}
+          {splitAmount(entry.resource, entry.amount).num}
+        </span>
+        <span
+          className={`text-[12px] font-normal leading-none mb-[1px] ${
+            accent ? 'text-white/90' : 'text-black/70'
+          }`}
+        >
+          {splitAmount(entry.resource, entry.amount).unit}
         </span>
       </div>
     </div>

@@ -21,17 +21,19 @@ import {
 } from '../Home/exchanges'
 import { FRIENDS, type ExchangeUser, type Offer } from '../Exchange/data'
 
-const UNIT_SUFFIX: Record<string, string> = {
+const UNIT_LABEL: Record<string, string> = {
   Fuel: 'L',
   Water: 'L',
-  Power: '',
-  Meals: '',
+  Power: 'KWh',
+  Meals: 'pcs',
 }
 
-function fmtOffer(o: Offer): string {
-  // Some amounts already carry a unit (e.g. "5L"); only append for bare numbers.
-  if (/[a-zA-Z]$/.test(o.amount)) return o.amount
-  return `${o.amount}${UNIT_SUFFIX[o.resource] ?? ''}`
+// Split a quantity into number + unit (uses the amount's own unit when present).
+function splitOffer(o: Offer): { num: string; unit: string } {
+  const m = o.amount.match(/^([\d.]+)\s*([a-zA-Z]*)$/)
+  const num = m ? m[1] : o.amount
+  const unit = m && m[2] ? m[2] : UNIT_LABEL[o.resource] ?? ''
+  return { num, unit }
 }
 
 function resIcon(resource: string, size: number, className: string) {
@@ -86,17 +88,19 @@ type Mode = 'browsing' | 'walking'
 const DRAWER_TOP_BROWSING = 636
 const DRAWER_TOP_SELECTED = 520
 const DRAWER_TOP_WALKING = 606
-const SHEET_TRANSITION = 'top 280ms cubic-bezier(.22,.61,.36,1)'
+const SHEET_TRANSITION = 'top 380ms cubic-bezier(0.34, 1.56, 0.64, 1)'
 
 function NavChip({
   label,
   icon,
-  value,
+  num,
+  unit,
   variant,
 }: {
   label: string
   icon: React.ReactNode
-  value: string
+  num: string
+  unit: string
   variant: 'plain' | 'accent'
 }) {
   const isAccent = variant === 'accent'
@@ -113,14 +117,21 @@ function NavChip({
       >
         {label}
       </span>
-      <div className="flex items-center gap-[4px] mt-[6px]">
+      <div className="flex items-end gap-[4px] mt-[6px]">
         {icon}
         <span
           className={`text-[20px] font-bold leading-none ${
             isAccent ? 'text-white' : 'text-black'
           }`}
         >
-          {value}
+          {num}
+        </span>
+        <span
+          className={`text-[12px] font-normal leading-none mb-[1px] ${
+            isAccent ? 'text-white/90' : 'text-black/70'
+          }`}
+        >
+          {unit}
         </span>
       </div>
     </div>
@@ -177,7 +188,8 @@ function DottedRoute({ pts, preview = false }: { pts: Pt[]; preview?: boolean })
                 from="0"
                 to="1"
                 dur={WALK_DUR}
-                repeatCount="indefinite"
+                repeatCount="1"
+                fill="freeze"
               />
             </path>
           </mask>
@@ -202,7 +214,7 @@ function DottedRoute({ pts, preview = false }: { pts: Pt[]; preview?: boolean })
       {/* Walker — my avatar circle, moves along the route (not in preview) */}
       {!preview && (
         <g>
-          <animateMotion dur={WALK_DUR} repeatCount="indefinite" path={forward} />
+          <animateMotion dur={WALK_DUR} repeatCount="1" fill="freeze" path={forward} />
           <circle r="21" fill="#3b82f6" stroke="white" strokeWidth="3" />
           <image href={MY_PHOTO} x="-18" y="-18" width="36" height="36" clipPath="url(#walker-clip)" />
         </g>
@@ -262,7 +274,7 @@ export default function Navigate() {
   // route → transition to the "You've Arrived" screen.
   useEffect(() => {
     if (mode !== 'walking') return
-    const t = setTimeout(() => navigate('/arrived'), 12000)
+    const t = setTimeout(() => navigate('/arrived'), WALK_MS)
     return () => clearTimeout(t)
   }, [mode, navigate])
 
@@ -295,6 +307,9 @@ export default function Navigate() {
       give: { resource: give.resource, amount: give.amount },
       get: { resource: get.resource, amount: get.amount },
     })
+    // Seed the ETA before the first walking render so it doesn't flash 0 → total.
+    setRemainingMin(totalMin)
+    setNavStep(0)
     setMode('walking')
   }
 
@@ -447,14 +462,16 @@ export default function Navigate() {
               <NavChip
                 label="You Give"
                 icon={resIcon(give.resource, 20, 'text-black')}
-                value={fmtOffer(give)}
+                num={splitOffer(give).num}
+                unit={splitOffer(give).unit}
                 variant="plain"
               />
               <SwapIcon size={24} className="text-black" />
               <NavChip
                 label="You Get"
                 icon={resIcon(get.resource, 20, 'text-white')}
-                value={fmtOffer(get)}
+                num={splitOffer(get).num}
+                unit={splitOffer(get).unit}
                 variant="accent"
               />
             </div>
@@ -462,9 +479,9 @@ export default function Navigate() {
             <button
               type="button"
               onClick={startWalking}
-              className="absolute left-[23px] right-[23px] top-[188px] h-[48px] rounded-pill bg-accent text-white text-[15px] font-bold"
+              className="absolute left-[23px] right-[23px] top-[188px] h-[48px] rounded-pill bg-accent text-white text-[16px] font-bold"
             >
-              Confirm Exchange &amp; Pick Up On The Way
+              Navigate to {selected.user.name.split(' ')[0]}
             </button>
           </>
         )}

@@ -22,7 +22,7 @@ const UNITS: Record<Resource, string> = {
 
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', 'del'] as const
 
-const SNAP = '320ms cubic-bezier(.22,.61,.36,1)'
+const SNAP = '400ms cubic-bezier(0.34, 1.56, 0.64, 1)'
 
 function ResourceIcon({ r, size = 17 }: { r: Resource; size?: number }) {
   if (r === 'Fuel') return <FireIcon size={size} />

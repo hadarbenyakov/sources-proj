@@ -15,11 +15,18 @@ import { applyExchangeGain, loadActiveNavigation, loadResourceLevels } from '../
 
 const ORANGE = '#f46a2b'
 
-const UNIT_SUFFIX: Record<string, string> = {
+const UNIT_LABEL: Record<string, string> = {
   Fuel: 'L',
   Water: 'L',
-  Power: '',
-  Meals: '',
+  Power: 'KWh',
+  Meals: 'pcs',
+}
+
+// Append the unit unless the amount already carries one (e.g. "5L").
+function withUnit(resource: string, amount: string): string {
+  if (/[a-zA-Z]$/.test(amount)) return amount
+  const u = UNIT_LABEL[resource]
+  return u ? `${amount} ${u}` : amount
 }
 
 function resIcon(resource: string, size: number, className: string) {
@@ -101,7 +108,7 @@ export default function Arrived() {
                 <div className="flex items-end gap-[2px]">
                   {resIcon(give.resource, 22, 'text-black')}
                   <span className="text-[22px] font-bold text-black leading-none">
-                    {give.amount}{UNIT_SUFFIX[give.resource] ?? ''}
+                    {withUnit(give.resource, give.amount)}
                   </span>
                 </div>
               </div>
@@ -116,7 +123,7 @@ export default function Arrived() {
                 <div className="flex items-end gap-[2px]">
                   {resIcon(get.resource, 22, 'text-white')}
                   <span className="text-[22px] font-bold text-white leading-none">
-                    {get.amount}{UNIT_SUFFIX[get.resource] ?? ''}
+                    {withUnit(get.resource, get.amount)}
                   </span>
                 </div>
               </div>
