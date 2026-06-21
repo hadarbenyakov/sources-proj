@@ -129,6 +129,7 @@ function NavChip({
 }
 
 const WALK_DUR = '12s'
+const WALK_MS = 12000
 
 // Turn-by-turn instructions shown during walking, advancing on a fixed schedule.
 const NAV_STEPS = [
@@ -147,7 +148,9 @@ const STEP_TIMES = [3000, 6500, 9500] // ms after walk starts to advance to next
  */
 const MY_PHOTO = 'https://i.pravatar.cc/150?u=me'
 
-function DottedRoute({ pts }: { pts: Pt[] }) {
+// `preview` draws the full planned route (static, no walker); otherwise the
+// dots are eaten Pac-Man style behind the moving walker.
+function DottedRoute({ pts, preview = false }: { pts: Pt[]; preview?: boolean }) {
   const forward = pointsToPath(pts)
   const reversed = pointsToPath([...pts].reverse())
   return (
@@ -156,34 +159,36 @@ function DottedRoute({ pts }: { pts: Pt[] }) {
       style={{ left: 0, top: 0, width: 393, height: 682 }}
       viewBox="0 0 393 682"
     >
-      <defs>
-        <mask id="route-eat">
-          <path
-            d={reversed}
-            stroke="white"
-            strokeWidth="24"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            fill="none"
-            pathLength={1}
-            strokeDasharray="1 1"
-            strokeDashoffset={0}
-          >
-            <animate
-              attributeName="stroke-dashoffset"
-              from="0"
-              to="1"
-              dur={WALK_DUR}
-              repeatCount="indefinite"
-            />
-          </path>
-        </mask>
-        <clipPath id="walker-clip">
-          <circle r="18" />
-        </clipPath>
-      </defs>
+      {!preview && (
+        <defs>
+          <mask id="route-eat">
+            <path
+              d={reversed}
+              stroke="white"
+              strokeWidth="24"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              fill="none"
+              pathLength={1}
+              strokeDasharray="1 1"
+              strokeDashoffset={0}
+            >
+              <animate
+                attributeName="stroke-dashoffset"
+                from="0"
+                to="1"
+                dur={WALK_DUR}
+                repeatCount="indefinite"
+              />
+            </path>
+          </mask>
+          <clipPath id="walker-clip">
+            <circle r="18" />
+          </clipPath>
+        </defs>
+      )}
 
-      {/* Dots on the route, masked so only the part ahead of the walker shows */}
+      {/* Dots on the route — full when previewing, masked while walking */}
       <path
         d={forward}
         stroke="white"
@@ -191,15 +196,18 @@ function DottedRoute({ pts }: { pts: Pt[] }) {
         strokeLinecap="round"
         strokeDasharray="0 18"
         fill="none"
-        mask="url(#route-eat)"
+        opacity={preview ? 0.6 : 1}
+        mask={preview ? undefined : 'url(#route-eat)'}
       />
 
-      {/* Walker — my avatar circle, moves along the route */}
-      <g>
-        <animateMotion dur={WALK_DUR} repeatCount="indefinite" path={forward} />
-        <circle r="21" fill="#3b82f6" stroke="white" strokeWidth="3" />
-        <image href={MY_PHOTO} x="-18" y="-18" width="36" height="36" clipPath="url(#walker-clip)" />
-      </g>
+      {/* Walker — my avatar circle, moves along the route (not in preview) */}
+      {!preview && (
+        <g>
+          <animateMotion dur={WALK_DUR} repeatCount="indefinite" path={forward} />
+          <circle r="21" fill="#3b82f6" stroke="white" strokeWidth="3" />
+          <image href={MY_PHOTO} x="-18" y="-18" width="36" height="36" clipPath="url(#walker-clip)" />
+        </g>
+      )}
     </svg>
   )
 }
@@ -274,6 +282,18 @@ export default function Navigate() {
     return () => timers.forEach(clearTimeout)
   }, [isWalking])
 
+  // ETA in minutes, derived from the route distance (~80 m/min walking), then
+  // counted down over the walk until I reach the destination.
+  const totalMin = selected ? Math.max(2, Math.round(selected.user.distanceMeters / 80)) : 0
+  const [remainingMin, setRemainingMin] = useState(0)
+  useEffect(() => {
+    if (!isWalking || totalMin <= 0) return
+    setRemainingMin(totalMin)
+    const stepMs = WALK_MS / totalMin
+    const id = setInterval(() => setRemainingMin((m) => Math.max(0, m - 1)), stepMs)
+    return () => clearInterval(id)
+  }, [isWalking, totalMin])
+
   function startWalking() {
     if (!selected || !give || !get) return
     setActiveNavigation({
@@ -311,9 +331,11 @@ export default function Navigate() {
           className="absolute inset-0 w-full h-full object-cover pointer-events-none"
         />
 
-        {/* Route + walker only shown once a destination is chosen and walking */}
-        {isWalking && selected && (
+        {/* Route to the selected person — a static preview before walking,
+            then the animated (eaten) route once walking begins. */}
+        {selected && (
           <DottedRoute
+            preview={!isWalking}
             pts={[
               ...ROUTE_POINTS.slice(0, selected.routeIndex + 1),
               { x: selected.left, y: selected.top },
@@ -342,7 +364,7 @@ export default function Navigate() {
             className="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none"
             style={{ left: ROUTE_POINTS[0].x, top: ROUTE_POINTS[0].y }}
           >
-            <div className="p-[3px] rounded-full bg-[#3b82f6] shadow-[0_2px_8px_rgba(0,0,0,0.4)]">
+            <div className="p-[3px] rounded-full bg-white shadow-[0_2px_8px_rgba(0,0,0,0.4)]">
               <Avatar name="Me" size={42} seed="me" photo={MY_PHOTO} />
             </div>
           </div>
@@ -365,11 +387,13 @@ export default function Navigate() {
                 style={{ left: m.left, top: m.top }}
               >
                 <div
-                  className={`p-[3px] rounded-full ${isSel ? 'bg-accent' : 'bg-white'} shadow-[0_2px_8px_rgba(0,0,0,0.35)]`}
+                  className={`rounded-full shadow-[0_2px_8px_rgba(0,0,0,0.35)] ${
+                    isSel ? 'p-[3px] bg-accent' : ''
+                  }`}
                 >
                   <Avatar
                     name={m.user.name}
-                    size={42}
+                    size={isSel ? 42 : 30}
                     seed={m.user.id}
                     photo={m.user.photo}
                   />
@@ -487,10 +511,11 @@ export default function Navigate() {
             <div className="absolute left-[18px] right-[18px] top-[118px] h-[53px] flex items-center justify-between px-[14px]">
               <div className="flex items-baseline gap-[14px]">
                 <span className="text-[28px] font-bold text-black leading-none">
-                  6 Min
+                  {remainingMin} Min
                 </span>
-                <span className="text-[13px] text-black/55">650 M</span>
-                <span className="text-[13px] text-black/55">12:40</span>
+                <span className="text-[13px] text-black/55">
+                  {selected?.user.distance ?? '650 M'}
+                </span>
               </div>
               <button
                 type="button"

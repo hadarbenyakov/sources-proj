@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Avatar from '../../components/Avatar'
 import BottomTabBar from '../../components/BottomTabBar'
+import GlassLayer from '../../components/GlassLayer'
 import NotificationsBell from '../../components/NotificationsBell'
 import StatusPill from '../../components/StatusPill'
 import {
@@ -19,14 +20,12 @@ import { addNegotiation, addNotification } from '../Home/exchanges'
 
 type Tab = 'friends' | 'neighbors'
 
+// The sheet is anchored to the bottom; these are its `top` values per state.
 const SHEET_CLOSED_TOP = 749
-const SHEET_OPEN_TOP = 564
-const SHEET_CLOSED_HEIGHT = 103
-const SHEET_OPEN_HEIGHT = 288
+const SHEET_OPEN_TOP = 520
 // Expanded (negotiation form) — raised so the swipe row clears the tab bar.
 const SHEET_FORM_TOP = 250
-const SHEET_FORM_HEIGHT = 602
-const SHEET_TRANSITION = 'top 280ms cubic-bezier(.22,.61,.36,1), height 280ms cubic-bezier(.22,.61,.36,1)'
+const SHEET_TRANSITION = 'top 280ms cubic-bezier(.22,.61,.36,1)'
 
 function ResourceIcon({ r, size = 22, className }: { r: Resource; size?: number; className?: string }) {
   if (r === 'Fuel') return <FireIcon size={size} className={className} />
@@ -76,50 +75,42 @@ function OfferChip({
   )
 }
 
+// Header (avatar + name + description) is laid out identically to the
+// NegotiateForm header so the crossfade keeps the avatar exactly in place.
+function DrawerHeader({ user }: { user: ExchangeUser }) {
+  return (
+    <div className="flex items-center gap-[9px] p-[16px]">
+      <Avatar name={user.name} size={44} seed={user.id} photo={user.photo} />
+      <div className="flex flex-col gap-[2px] font-inter">
+        <span className="text-[16px] font-medium text-black leading-none">
+          {user.fullName}
+        </span>
+        <span className="text-[12px] text-[#595959] leading-[1.4]">
+          From my solar stepup. Transfer before {user.availableUntil}
+        </span>
+      </div>
+    </div>
+  )
+}
+
 function SelectedUserDrawer({ user }: { user: ExchangeUser }) {
-  if (!user.gives || !user.wants) {
-    return (
-      <>
-        <div className="absolute left-[18px] right-[18px] top-[38px] h-[134px] bg-[#dcdcdc] rounded-[27px]" />
-        <div className="absolute left-[34px] right-[20px] top-[46px] flex items-center gap-[9px]">
-          <Avatar name={user.name} size={36} seed={user.id} photo={user.photo} />
-          <span className="text-[16px] font-semibold text-black leading-tight">
-            {user.fullName}
-          </span>
-        </div>
-        <div className="absolute left-0 right-0 top-[100px] flex flex-col items-center gap-[4px]">
+  return (
+    <div className="absolute left-[19px] top-[52px] w-[347px] bg-[#dfdfdf] rounded-[32px] flex flex-col">
+      <DrawerHeader user={user} />
+
+      {!user.gives || !user.wants ? (
+        <div className="flex flex-col items-center gap-[4px] px-[20px] pb-[28px] pt-[8px]">
           <span className="text-[14px] font-semibold text-black/60">No active requests</span>
           <span className="text-[12px] text-black/40">Check back later</span>
         </div>
-      </>
-    )
-  }
-
-  return (
-    <>
-      {/* Inner gray frame (wraps the header + chips) */}
-      <div className="absolute left-[18px] right-[18px] top-[38px] h-[134px] bg-[#dcdcdc] rounded-[27px]" />
-
-      {/* Header: avatar + name / description (tight pair, aligned to avatar) */}
-      <div className="absolute left-[34px] right-[20px] top-[46px] flex items-center gap-[9px]">
-        <Avatar name={user.name} size={36} seed={user.id} photo={user.photo} />
-        <div className="flex flex-col gap-[1px]">
-          <span className="text-[16px] font-semibold text-black leading-tight">
-            {user.fullName}
-          </span>
-          <span className="text-[13px] text-black/55 leading-tight">
-            From my solar stepup. Transfer before {user.availableUntil}
-          </span>
+      ) : (
+        <div className="flex items-center justify-center gap-[7px] px-[20px] pb-[24px] pt-[4px]">
+          <OfferChip label="Get" user={user.wants} variant="plain" />
+          <SwapIcon size={20} className="text-black shrink-0" />
+          <OfferChip label="Gives" user={user.gives} variant="accent" />
         </div>
-      </div>
-
-      {/* Exchange chips row */}
-      <div className="absolute left-[39px] right-[39px] top-[100px] h-[59px] flex items-center justify-between">
-        <OfferChip label="Get" user={user.wants} variant="plain" />
-        <SwapIcon size={20} className="text-black" />
-        <OfferChip label="Gives" user={user.gives} variant="accent" />
-      </div>
-    </>
+      )}
+    </div>
   )
 }
 
@@ -171,17 +162,26 @@ export default function Exchange() {
     navigate('/request-sent', { state: payload })
   }
 
-  // Drag on the selected drawer: peek → up expands to the form / down closes;
-  // form → down collapses back to peek.
+  // Drag on the selected drawer: it follows the finger live, then snaps —
+  // peek → up expands to the form / down closes; form → down collapses to peek.
   const dragRef = useRef<{ startY: number; id: string } | null>(null)
+  const [dragY, setDragY] = useState(0) // live offset, up = negative
+  const [dragging, setDragging] = useState(false)
   function onDrawerPointerDown(e: React.PointerEvent) {
     if (!selectedId) return
     dragRef.current = { startY: e.clientY, id: selectedId }
     ;(e.currentTarget as Element).setPointerCapture(e.pointerId)
+    setDragging(true)
+  }
+  function onDrawerPointerMove(e: React.PointerEvent) {
+    if (!dragRef.current) return
+    setDragY(e.clientY - dragRef.current.startY)
   }
   function onDrawerPointerUp(e: React.PointerEvent) {
     const s = dragRef.current
     dragRef.current = null
+    setDragging(false)
+    setDragY(0)
     if (!s) return
     const dy = s.startY - e.clientY // up = positive
     const isTap = Math.abs(dy) < 10
@@ -195,6 +195,23 @@ export default function Exchange() {
       setExpanded(false)
     }
   }
+
+  // Live sheet position + a 0→1 progress between peek (open) and full form,
+  // used to crossfade the peek content out and the form content in.
+  const baseTop = expanded
+    ? SHEET_FORM_TOP
+    : selected
+      ? SHEET_OPEN_TOP
+      : SHEET_CLOSED_TOP
+  const sheetTop = Math.min(
+    SHEET_CLOSED_TOP,
+    Math.max(SHEET_FORM_TOP, baseTop + (dragging && selected ? dragY : 0)),
+  )
+  const formProgress = Math.min(
+    1,
+    Math.max(0, (SHEET_OPEN_TOP - sheetTop) / (SHEET_OPEN_TOP - SHEET_FORM_TOP)),
+  )
+  const opacityT = dragging ? 'none' : 'opacity 240ms ease'
 
   return (
     <div className="w-[393px] h-[852px] relative bg-app text-textPrimary overflow-hidden select-none">
@@ -233,14 +250,15 @@ export default function Exchange() {
       </div>
 
       {/* Search */}
-      <div className="absolute left-[19px] right-[19px] top-[195px] rounded-[30px] bg-[#323232] flex items-center p-[10px] gap-[10px]">
-        <SearchIcon size={24} className="text-[#595959]" />
+      <div className="absolute left-[19px] right-[19px] top-[195px] rounded-[30px] overflow-hidden flex items-center p-[10px] gap-[10px]">
+        <GlassLayer radius={30} />
+        <SearchIcon size={24} className="text-[#8a8a8a] relative" />
         <input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search"
-          className="flex-1 bg-transparent outline-none font-inter text-[13px] text-white placeholder:text-[#595959]"
+          className="relative flex-1 bg-transparent outline-none font-inter text-[13px] text-white placeholder:text-[#8a8a8a]"
         />
       </div>
 
@@ -313,49 +331,62 @@ export default function Exchange() {
       {/* Bottom sheet — list peek → selected peek → expanded negotiation form,
           all on this same page (the form just grows the drawer to full height). */}
       <div
-        className="absolute left-[5px] right-[5px] bg-sheet rounded-t-[40px] shadow-[0_-4px_20px_rgba(0,0,0,0.18)]"
+        className="absolute left-[5px] right-[5px] bottom-0 bg-sheet rounded-t-[40px] shadow-[0_-4px_20px_rgba(0,0,0,0.18)]"
         style={{
-          top: expanded
-            ? SHEET_FORM_TOP
-            : selected
-              ? SHEET_OPEN_TOP
-              : SHEET_CLOSED_TOP,
-          height: expanded
-            ? SHEET_FORM_HEIGHT
-            : selected
-              ? SHEET_OPEN_HEIGHT
-              : SHEET_CLOSED_HEIGHT,
-          transition: SHEET_TRANSITION,
+          // Anchored to the bottom; only `top` changes, so the sheet stretches
+          // smoothly between peek and form without ever detaching from the base.
+          top: sheetTop,
+          transition: dragging ? 'none' : SHEET_TRANSITION,
         }}
       >
         {/* Drag handle / capture area for swipe-up gesture (only active when selected) */}
         <div
-          className="absolute left-0 right-0 top-0 h-[40px] cursor-grab"
+          className="absolute left-0 right-0 top-0 h-[40px] cursor-grab z-20"
           style={{ touchAction: 'pan-y' }}
           onPointerDown={onDrawerPointerDown}
+          onPointerMove={onDrawerPointerMove}
           onPointerUp={onDrawerPointerUp}
           onPointerCancel={onDrawerPointerUp}
         >
           <div className="absolute left-1/2 -translate-x-1/2 top-[20px] w-[51px] h-[4px] rounded-full bg-black/20" />
         </div>
-        {selected && !expanded && (
-          <div
-            className="absolute inset-0 cursor-pointer"
-            style={{ touchAction: 'pan-y' }}
-            onPointerDown={onDrawerPointerDown}
-            onPointerUp={onDrawerPointerUp}
-            onPointerCancel={onDrawerPointerUp}
-          >
-            <SelectedUserDrawer user={selected} />
-          </div>
-        )}
-        {selected && expanded && (
-          <NegotiateForm
-            key={selected.id}
-            user={selected}
-            onClose={() => setExpanded(false)}
-            onSend={sendNegotiation}
-          />
+
+        {selected && (
+          <>
+            {/* Peek content — fades out as the sheet grows toward the form */}
+            <div
+              className="absolute inset-0 cursor-pointer"
+              style={{
+                touchAction: 'pan-y',
+                opacity: 1 - formProgress,
+                transition: opacityT,
+                pointerEvents: formProgress > 0.5 ? 'none' : 'auto',
+              }}
+              onPointerDown={onDrawerPointerDown}
+              onPointerMove={onDrawerPointerMove}
+              onPointerUp={onDrawerPointerUp}
+              onPointerCancel={onDrawerPointerUp}
+            >
+              <SelectedUserDrawer user={selected} />
+            </div>
+
+            {/* Form content — fades in as the sheet grows */}
+            <div
+              className="absolute inset-0"
+              style={{
+                opacity: formProgress,
+                transition: opacityT,
+                pointerEvents: formProgress > 0.5 ? 'auto' : 'none',
+              }}
+            >
+              <NegotiateForm
+                key={selected.id}
+                user={selected}
+                onClose={() => setExpanded(false)}
+                onSend={sendNegotiation}
+              />
+            </div>
+          </>
         )}
       </div>
 

@@ -102,7 +102,7 @@ export default function EditExchangeSheet({ exchange, onClose, onSaved }: Props)
           <div className="flex items-center gap-[8px]">
             {/* Give — gray */}
             <div className="flex-1 bg-[#dcdcdc] rounded-[22px] px-[12px] py-[16px] flex flex-col items-center gap-[8px]">
-              <span className="text-[11px] font-semibold text-black/45 uppercase tracking-wide">You give</span>
+              <span className="text-[11px] font-semibold text-black/45">You give</span>
               <div className="flex items-baseline gap-[3px]">
                 <span className="text-[36px] font-bold text-black/80 leading-none">{giveAmount}</span>
                 <span className="text-[13px] font-medium text-black/40 mb-[3px]">{UNITS[giveRes]}</span>
@@ -136,7 +136,7 @@ export default function EditExchangeSheet({ exchange, onClose, onSaved }: Props)
 
             {/* Get — accent */}
             <div className="flex-1 bg-accent rounded-[22px] px-[12px] py-[16px] flex flex-col items-center gap-[8px]">
-              <span className="text-[11px] font-semibold text-white/65 uppercase tracking-wide">You get</span>
+              <span className="text-[11px] font-semibold text-white/65">You get</span>
               <div className="flex items-baseline gap-[3px]">
                 <span className="text-[36px] font-bold text-white leading-none">{getAmount}</span>
                 <span className="text-[13px] font-medium text-white/55 mb-[3px]">{UNITS[getRes]}</span>

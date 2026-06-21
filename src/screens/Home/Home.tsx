@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import BottomTabBar from '../../components/BottomTabBar'
-import GlassPill from '../../components/GlassPill'
+import GlassLayer from '../../components/GlassLayer'
 import NotificationsBell from '../../components/NotificationsBell'
 import DotRing from './DotRing'
 import ExchangeCard from './ExchangeCard'
@@ -35,7 +35,6 @@ function ResourceCard({
   label,
   percent,
   remaining,
-  requestActive,
   progress,
   dragging,
   onRequest,
@@ -44,11 +43,33 @@ function ResourceCard({
   label: string
   percent: number
   remaining: string
-  requestActive?: boolean
   progress: number
   dragging: boolean
   onRequest?: () => void
 }) {
+  // Animate the ring filling up each time Home mounts (i.e. on every arrival).
+  // Dots light at a constant cadence (same rate in both rings), so Fuel — which
+  // has fewer filled dots — finishes early while Power keeps going until done.
+  const [ringPercent, setRingPercent] = useState(0)
+  useEffect(() => {
+    const RING_DOTS = 14
+    const PER_DOT_MS = 85
+    const targetCount = Math.round((percent / 100) * RING_DOTS)
+    const dur = Math.max(1, targetCount * PER_DOT_MS)
+    let raf = 0
+    const start = performance.now()
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / dur)
+      setRingPercent(percent * t) // linear → equal time per dot
+      if (t < 1) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [percent])
+
+  // A resource turns white once it climbs above 50%; below that it's orange.
+  const ringColor = percent > 50 ? '#ffffff' : '#ff5f1f'
+
   const isPower = kind === 'power'
   const top = isPower ? lerp(150, 132, progress) : lerp(392, 309, progress)
   const height = isPower ? lerp(215, 150, progress) : lerp(215, 148, progress)
@@ -62,9 +83,10 @@ function ResourceCard({
 
   return (
     <div
-      className="absolute left-[9px] w-[376px] rounded-card bg-black/20 overflow-hidden"
+      className="absolute left-[9px] w-[376px] rounded-card overflow-hidden"
       style={{ top, height, transition: cardT }}
     >
+      <GlassLayer radius={24} />
       <div
         className="absolute left-5"
         style={{ top: innerTop, transition: innerT }}
@@ -109,11 +131,11 @@ function ResourceCard({
         style={{ top: ringTop, transition: cardT }}
       >
         <DotRing
-          percent={percent}
+          percent={ringPercent}
           size={100}
           dots={14}
           dotSize={17}
-          activeColor={requestActive ? '#ff5f1f' : '#ffffff'}
+          activeColor={ringColor}
           trackColor="#2C2C2C"
         />
       </div>
@@ -184,6 +206,7 @@ export default function Home() {
   )
   const drag = useRef<DragState | null>(null)
 
+  // Expanding a sent request opens its inline editor and lifts the drawer.
   function toggleExchangeExpand(id: string) {
     setExpandedExchangeId((prev) => {
       const next = prev === id ? null : id
@@ -272,11 +295,6 @@ export default function Home() {
         <button type="button" className="text-textPrimary p-1 -ml-1">
           <MenuIcon />
         </button>
-        <GlassPill className="h-[43px] w-[204px] justify-center">
-          <span className="text-[14px] font-bold text-white whitespace-nowrap">
-            12:30 PM
-          </span>
-        </GlassPill>
         <NotificationsBell />
       </div>
 
@@ -295,7 +313,6 @@ export default function Home() {
         label="Fuel"
         percent={displayLevels.fuel}
         remaining="4H Left"
-        requestActive
         progress={progress}
         dragging={dragging}
         onRequest={() => setRequestSheet('Fuel')}
@@ -402,6 +419,7 @@ export default function Home() {
       {requestSheet !== null && (
         <RequestSheet
           key={requestSheet}
+          defaultResource={requestSheet}
           onClose={() => setRequestSheet(null)}
         />
       )}

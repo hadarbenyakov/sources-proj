@@ -172,7 +172,7 @@ export default function NegotiateForm({
       </button>
 
       {/* Content card */}
-      <div className="absolute left-[19px] top-[65px] w-[347px] bg-[#dfdfdf] rounded-[32px] flex flex-col">
+      <div className="absolute left-[19px] top-[52px] w-[347px] bg-[#dfdfdf] rounded-[32px] flex flex-col">
         {/* Header: avatar + name + description */}
         <div className="flex items-center gap-[9px] p-[16px]">
           <Avatar name={user.name} size={44} seed={user.id} photo={user.photo} />

@@ -32,12 +32,14 @@ function ResourceIcon({ r, size = 17 }: { r: Resource; size?: number }) {
 }
 
 type Props = {
+  defaultResource?: Resource
   onClose: () => void
 }
 
-export default function RequestSheet({ onClose }: Props) {
+export default function RequestSheet({ defaultResource, onClose }: Props) {
   const navigate = useNavigate()
-  const [selected, setSelected] = useState<Resource | null>(null)
+  // Pre-select the resource the user tapped "Request" on (Power / Fuel).
+  const [selected, setSelected] = useState<Resource | null>(defaultResource ?? null)
   const [value, setValue] = useState('0')
   const [entered, setEntered] = useState(false)
   const [exiting, setExiting] = useState(false)

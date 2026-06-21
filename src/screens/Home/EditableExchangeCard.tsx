@@ -119,7 +119,7 @@ export default function EditableExchangeCard({
           <div className="flex flex-col gap-[12px] px-[14px] pb-[18px]">
 
             {/* Title */}
-            <span className="text-[12px] font-semibold text-black/40 uppercase tracking-wide">
+            <span className="text-[12px] font-semibold text-black/40">
               Edit Exchange Request
             </span>
 
@@ -127,7 +127,7 @@ export default function EditableExchangeCard({
             <div className="flex items-center gap-[8px]">
               {/* Give — gray */}
               <div className="flex-1 bg-white/50 rounded-[18px] px-[10px] py-[12px] flex flex-col items-center gap-[6px]">
-                <span className="text-[10px] font-semibold text-black/40 uppercase tracking-wide">You give</span>
+                <span className="text-[10px] font-semibold text-black/40">You give</span>
                 <div className="flex items-baseline gap-[2px]">
                   <span className="text-[30px] font-bold text-black/80 leading-none">{giveAmount}</span>
                   <span className="text-[12px] font-medium text-black/35 mb-[2px]">{UNITS[giveRes]}</span>
@@ -160,7 +160,7 @@ export default function EditableExchangeCard({
 
               {/* Get — accent */}
               <div className="flex-1 bg-accent rounded-[18px] px-[10px] py-[12px] flex flex-col items-center gap-[6px]">
-                <span className="text-[10px] font-semibold text-white/60 uppercase tracking-wide">You get</span>
+                <span className="text-[10px] font-semibold text-white/60">You get</span>
                 <div className="flex items-baseline gap-[2px]">
                   <span className="text-[30px] font-bold text-white leading-none">{getAmount}</span>
                   <span className="text-[12px] font-medium text-white/50 mb-[2px]">{UNITS[getRes]}</span>
