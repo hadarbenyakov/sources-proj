@@ -13,8 +13,8 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Navigate to="/home" replace />} />
           <Route path="/home" element={<Home />} />
-          <Route path="/send-request" element={<SendRequest key="give" mode="give" />} />
-          <Route path="/receive-request" element={<SendRequest key="get" mode="get" />} />
+          <Route path="/send-request" element={<SendRequest key="get" mode="get" />} />
+          <Route path="/receive-request" element={<SendRequest key="give" mode="give" />} />
           <Route path="/describe-request" element={<SendRequest key="describe" mode="describe" />} />
           <Route path="/request-sent" element={<RequestSent />} />
           <Route path="/exchange" element={<Exchange />} />

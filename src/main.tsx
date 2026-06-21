@@ -1,6 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { BrowserRouter } from 'react-router-dom'
+import { HashRouter } from 'react-router-dom'
 import App from './App'
 // Fonts from Figma: Plus Jakarta Sans (primary) + Inter (a few small labels).
 import '@fontsource/plus-jakarta-sans/400.css'
@@ -12,10 +12,12 @@ import '@fontsource/inter/400.css'
 import '@fontsource/montserrat-alternates/600.css'
 import './styles/globals.css'
 
+localStorage.clear()
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <BrowserRouter>
+    <HashRouter>
       <App />
-    </BrowserRouter>
+    </HashRouter>
   </React.StrictMode>,
 )

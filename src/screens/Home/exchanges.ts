@@ -6,6 +6,7 @@ export type MyExchange = {
   id: string
   give: Entry
   get: Entry
+  description?: string
   status: 'Pending'
 }
 
@@ -30,6 +31,14 @@ export function loadExchanges(): MyExchange[] {
 export function addExchange(give: Entry, get: Entry): void {
   const item: MyExchange = { id: `ex-${Date.now()}`, give, get, status: 'Pending' }
   saveJSON(KEY, [item, ...loadExchanges()])
+}
+
+export function updateExchange(id: string, give: Entry, get: Entry, description?: string): void {
+  saveJSON(KEY, loadExchanges().map((ex) => ex.id === id ? { ...ex, give, get, description } : ex))
+}
+
+export function deleteExchange(id: string): void {
+  saveJSON(KEY, loadExchanges().filter((ex) => ex.id !== id))
 }
 
 export function loadNegotiations(): Negotiation[] {
@@ -103,7 +112,7 @@ export function loadResourceLevels(): ResourceLevels {
 }
 
 // How much each received unit raises the matching gauge (percentage points).
-const GAIN_PER_UNIT: Record<string, number> = { Power: 5, Fuel: 2 }
+const GAIN_PER_UNIT: Record<string, number> = { Power: 5, Fuel: 7 }
 
 /** Apply the resource I received from a completed exchange to my levels. */
 export function applyExchangeGain(get: Entry): void {

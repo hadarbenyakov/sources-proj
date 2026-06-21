@@ -8,10 +8,12 @@ export type ExchangeUser = {
   fullName: string
   photo: string
   distance: string
+  distanceMeters: number
   online: boolean
   availableUntil: string
   gives: Offer | null
   wants: Offer | null
+  exchangeCount: number
 }
 
 const OFFERS: Offer[] = [
@@ -82,7 +84,14 @@ const NAMES: Array<{ name: string; fullName: string }> = [
   { name: 'Moran L.', fullName: 'Moran Lavi' },
 ]
 
-const DISTANCES = ['120 M', '300 M', '450 M', '650 M', '800 M', '1.2 KM']
+const DISTANCE_ENTRIES: { label: string; meters: number }[] = [
+  { label: '120 M', meters: 120 },
+  { label: '300 M', meters: 300 },
+  { label: '450 M', meters: 450 },
+  { label: '650 M', meters: 650 },
+  { label: '800 M', meters: 800 },
+  { label: '1.2 KM', meters: 1200 },
+]
 const UNTIL = ['18 PM', '19 PM', '20 PM', '22 PM']
 
 function build(prefix: string, count: number, nameOffset: number): ExchangeUser[] {
@@ -90,17 +99,20 @@ function build(prefix: string, count: number, nameOffset: number): ExchangeUser[
     const id = `${prefix}${i}`
     const n = NAMES[(nameOffset + i) % NAMES.length]
     const h = hash(id)
-    const hasRequest = h % 3 !== 0 // ~2/3 have an active request
+    const hasRequest = h % 3 !== 0
+    const dist = DISTANCE_ENTRIES[i % DISTANCE_ENTRIES.length]
     return {
       id,
       name: n.name,
       fullName: n.fullName,
       photo: `https://i.pravatar.cc/150?u=${id}`,
-      distance: DISTANCES[i % DISTANCES.length],
+      distance: dist.label,
+      distanceMeters: dist.meters,
       online: hasRequest,
       availableUntil: UNTIL[i % UNTIL.length],
       gives: hasRequest ? OFFERS[h % OFFERS.length] : null,
       wants: hasRequest ? OFFERS[(h + 3) % OFFERS.length] : null,
+      exchangeCount: (h % 12),
     }
   })
 }

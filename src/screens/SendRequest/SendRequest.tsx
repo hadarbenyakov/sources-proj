@@ -49,24 +49,22 @@ export default function SendRequest({ mode = 'give' }: Props) {
   const location = useLocation()
   // Quantities entered in earlier steps, carried forward to the summary screen.
   const incoming = (location.state as FlowState | null) ?? {}
-  // Always start with a category selected (give → Fuel, get → Power).
-  const [selected, setSelected] = useState<Resource>(mode === 'get' ? 'Power' : 'Fuel')
+  const [selected, setSelected] = useState<Resource | null>(null)
   const [value, setValue] = useState<string>('0')
   const [description, setDescription] = useState<string>('')
-  const unit = UNITS[selected]
+  const unit = selected ? UNITS[selected] : ''
+  const locked = mode !== 'describe' && selected === null
 
-  // Slide the modal up from the bottom when first opened (from the Home plus).
-  // Later steps swap content in place, so only the "give" step animates in.
-  const [entered, setEntered] = useState(mode !== 'give')
+  // Animate in/out only on the first step (opened via the "+" button).
+  const [entered, setEntered] = useState(mode !== 'get')
   const [exiting, setExiting] = useState(false)
   useEffect(() => {
-    if (mode !== 'give') return
+    if (mode !== 'get') return
     const r = requestAnimationFrame(() => setEntered(true))
     return () => cancelAnimationFrame(r)
-  }, [mode])
+  }, [])
 
   const question = QUESTIONS[mode]
-  const showBack = mode !== 'give'
 
   function press(k: (typeof KEYS)[number]) {
     setValue((v) => {
@@ -79,22 +77,28 @@ export default function SendRequest({ mode = 'give' }: Props) {
   }
 
   function close() {
-    // Slide the sheet back down before leaving, mirroring the open animation.
-    setExiting(true)
-    setTimeout(() => navigate('/home'), 340)
+    if (mode === 'get') {
+      setExiting(true)
+      setTimeout(() => navigate('/home'), 340)
+    } else {
+      navigate('/home')
+    }
   }
 
   function back() {
-    navigate(-1)
+    // Step 1 (get): back closes the whole flow. Step 2+: go back one step.
+    if (mode === 'get') close()
+    else navigate(-1)
   }
 
   function next() {
-    if (mode === 'give') {
-      const give: Entry = { resource: selected, amount: value }
-      navigate('/receive-request', { state: { give } })
-    } else if (mode === 'get') {
-      const get: Entry = { resource: selected, amount: value }
-      navigate('/describe-request', { state: { ...incoming, get } })
+    if (!selected && mode !== 'describe') return
+    if (mode === 'get') {
+      const get: Entry = { resource: selected!, amount: value }
+      navigate('/receive-request', { state: { get } })
+    } else if (mode === 'give') {
+      const give: Entry = { resource: selected!, amount: value }
+      navigate('/describe-request', { state: { ...incoming, give } })
     } else if (mode === 'describe') {
       if (incoming.give && incoming.get) addExchange(incoming.give, incoming.get)
       navigate('/request-sent', { state: incoming })
@@ -125,7 +129,9 @@ export default function SendRequest({ mode = 'give' }: Props) {
   }
 
   return (
-    <div className="w-[393px] h-[852px] relative bg-app text-textPrimary overflow-hidden select-none">
+    <div
+      className="w-[393px] h-[852px] relative bg-app text-textPrimary overflow-hidden select-none"
+    >
       {/* Header */}
       <div className="absolute left-[27px] top-[66px] w-[340px] h-[43px] flex items-center justify-between">
         <button type="button" className="text-textPrimary p-1 -ml-1">
@@ -139,11 +145,11 @@ export default function SendRequest({ mode = 'give' }: Props) {
 
       {/* Modal sheet */}
       <div
-        className="absolute left-0 right-0 top-[130px] bottom-0 bg-sheet text-sheetText rounded-t-[40px] shadow-[0_-4px_20px_rgba(0,0,0,0.18)] will-change-transform"
-        style={{
+        className="absolute left-0 right-0 top-[130px] bottom-0 bg-sheet text-sheetText rounded-t-[40px] shadow-[0_-4px_20px_rgba(0,0,0,0.18)]"
+        style={mode === 'get' ? {
           transform: entered && !exiting ? 'translateY(0)' : 'translateY(100%)',
           transition: 'transform 340ms cubic-bezier(.22,.61,.36,1)',
-        }}
+        } : undefined}
       >
         {/* Drag handle */}
         <div className="absolute left-1/2 -translate-x-1/2 top-[10px] w-[51px] h-[4px] rounded-full bg-black/20 pointer-events-none" />
@@ -163,19 +169,17 @@ export default function SendRequest({ mode = 'give' }: Props) {
           <div className="absolute left-[23px] right-[23px] top-[370px] h-[258px] bg-[#f1f1f1] rounded-[20px]" />
         )}
 
-        {/* Back button (any mode except "give") */}
-        {showBack && (
-          <button
-            type="button"
-            onClick={back}
-            aria-label="Back"
-            className="absolute left-[27px] top-[80px] w-[34px] h-[34px] flex items-center justify-center text-sheetText/70 hover:text-sheetText"
-          >
-            <ChevronLeftIcon size={16} />
-          </button>
-        )}
+        {/* Back button — always shown so both steps look identical */}
+        <button
+          type="button"
+          onClick={back}
+          aria-label="Back"
+          className="absolute left-[27px] top-[80px] w-[34px] h-[34px] flex items-center justify-center text-sheetText/70 hover:text-sheetText"
+        >
+          <ChevronLeftIcon size={16} />
+        </button>
 
-        {/* X close (top-right of form section, below title) */}
+        {/* X close */}
         <button
           type="button"
           onClick={close}
@@ -217,8 +221,12 @@ export default function SendRequest({ mode = 'give' }: Props) {
               })}
             </div>
 
-            {/* Value display */}
-            <div className="absolute left-[23px] right-[23px] top-[223px] h-[136px] rounded-card bg-black/[0.07] flex items-center justify-center">
+            {/* Value display — disabled until a chip is selected */}
+            <div
+              className={`absolute left-[23px] right-[23px] top-[223px] h-[136px] rounded-card bg-black/[0.07] flex items-center justify-center transition-opacity ${
+                locked ? 'opacity-30' : 'opacity-100'
+              }`}
+            >
               <div className="flex items-baseline gap-[10px]">
                 <span className="text-[42px] font-bold text-sheetText/85 leading-none">
                   {value}
@@ -238,9 +246,13 @@ export default function SendRequest({ mode = 'give' }: Props) {
           />
         )}
 
-        {/* Keypad (only in quantity modes) */}
+        {/* Keypad (only in quantity modes) — disabled until a chip is selected */}
         {mode !== 'describe' && (
-          <div className="absolute left-[41px] right-[41px] top-[390px] grid grid-cols-3 gap-[10px]">
+          <div
+            className={`absolute left-[41px] right-[41px] top-[390px] grid grid-cols-3 gap-[10px] transition-opacity ${
+              locked ? 'opacity-30 pointer-events-none' : 'opacity-100'
+            }`}
+          >
             {KEYS.map((k) => (
               <button
                 key={k}
@@ -270,7 +282,10 @@ export default function SendRequest({ mode = 'give' }: Props) {
           <button
             type="button"
             onClick={next}
-            className="absolute left-[23px] right-[23px] top-[640px] h-[48px] rounded-pill bg-accent text-white text-[16px] font-semibold"
+            disabled={locked}
+            className={`absolute left-[23px] right-[23px] top-[640px] h-[48px] rounded-pill text-white text-[16px] font-semibold transition-opacity ${
+              locked ? 'bg-accent opacity-30 cursor-not-allowed' : 'bg-accent'
+            }`}
           >
             Next
           </button>

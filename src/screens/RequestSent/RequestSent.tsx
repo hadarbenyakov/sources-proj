@@ -53,11 +53,6 @@ export default function RequestSent() {
     navigate('/home')
   }
 
-  function edit(e: React.MouseEvent) {
-    e.stopPropagation()
-    navigate('/send-request')
-  }
-
   return (
     <div
       className="anim-screen-in w-[393px] h-[852px] relative overflow-hidden select-none cursor-pointer"
@@ -98,15 +93,6 @@ export default function RequestSent() {
           </div>
         </div>
 
-        {/* edit link */}
-        <button
-          type="button"
-          onClick={edit}
-          className="anim-rise-in text-[14px] text-black underline underline-offset-2 mt-[28px]"
-          style={{ animationDelay: '620ms' }}
-        >
-          edit
-        </button>
       </div>
 
       {/* Tap-to-close hint */}

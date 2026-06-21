@@ -123,19 +123,31 @@ function SelectedUserDrawer({ user }: { user: ExchangeUser }) {
   )
 }
 
+type SortMode = 'distance' | 'exchanges' | null
+
 export default function Exchange() {
   const navigate = useNavigate()
   const [tab, setTab] = useState<Tab>('friends')
   const [query, setQuery] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [sortMode, setSortMode] = useState<SortMode>(null)
+  const [activeOnly, setActiveOnly] = useState(false)
   // Drawer states: peek (user info + chips) → expanded (the negotiation form).
   // The form is the same page — just the drawer grown to full height.
   const [expanded, setExpanded] = useState(false)
 
   const pool = tab === 'friends' ? FRIENDS : NEIGHBORS
-  const users = query
-    ? pool.filter((u) => u.name.toLowerCase().includes(query.toLowerCase()))
-    : pool
+
+  const users = (() => {
+    let list = query
+      ? pool.filter((u) => u.name.toLowerCase().includes(query.toLowerCase()))
+      : [...pool]
+    if (activeOnly) list = list.filter((u) => u.online)
+    if (sortMode === 'distance') list = [...list].sort((a, b) => a.distanceMeters - b.distanceMeters)
+    if (sortMode === 'exchanges') list = [...list].sort((a, b) => b.exchangeCount - a.exchangeCount)
+    return list
+  })()
+
   const selected = selectedId ? pool.find((u) => u.id === selectedId) ?? null : null
 
   function onAvatarClick(u: ExchangeUser) {
@@ -232,9 +244,42 @@ export default function Exchange() {
         />
       </div>
 
+      {/* Sort / filter chips */}
+      <div className="absolute left-[19px] right-[19px] top-[251px] flex items-center gap-[8px]">
+        {(
+          [
+            { id: 'distance', label: 'Distance' },
+            { id: 'exchanges', label: 'Most Exchanged' },
+          ] as { id: SortMode & string; label: string }[]
+        ).map(({ id, label }) => {
+          const active = sortMode === id
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setSortMode(active ? null : id)}
+              className={`px-[12px] py-[6px] rounded-[30px] text-[12px] font-semibold transition-colors ${
+                active ? 'bg-accent text-white' : 'bg-[#323232] text-white/70'
+              }`}
+            >
+              {label}
+            </button>
+          )
+        })}
+        <button
+          type="button"
+          onClick={() => setActiveOnly((v) => !v)}
+          className={`px-[12px] py-[6px] rounded-[30px] text-[12px] font-semibold transition-colors ${
+            activeOnly ? 'bg-accent text-white' : 'bg-[#323232] text-white/70'
+          }`}
+        >
+          Active Only
+        </button>
+      </div>
+
       {/* Avatar grid */}
       <div
-        className="absolute left-[32px] right-[39px] top-[266px] bottom-0 overflow-y-auto px-[4px] pt-[4px] pb-[280px]"
+        className="absolute left-[32px] right-[39px] top-[302px] bottom-0 overflow-y-auto px-[4px] pt-[4px] pb-[280px]"
         style={{ scrollbarWidth: 'none' }}
       >
         <div className="grid grid-cols-3 gap-x-[61px] gap-y-[46px]">

@@ -6,11 +6,13 @@ import NotificationsBell from '../../components/NotificationsBell'
 import StatusPill from '../../components/StatusPill'
 import {
   FireIcon,
+  GoStraightIcon,
   LightningIcon,
   MealIcon,
   MenuIcon,
   SwapIcon,
   TurnLeftIcon,
+  TurnRightIcon,
   WaterDropIcon,
 } from '../Home/icons'
 import {
@@ -127,7 +129,15 @@ function NavChip({
 }
 
 const WALK_DUR = '12s'
-const MY_PHOTO = 'https://i.pravatar.cc/150?u=me'
+
+// Turn-by-turn instructions shown during walking, advancing on a fixed schedule.
+const NAV_STEPS = [
+  { Icon: TurnRightIcon, line1: 'Turn right on', line2: 'Trafalgar Square', dist: '250 M' },
+  { Icon: GoStraightIcon, line1: 'Continue on', line2: 'Trafalgar Square', dist: '150 M' },
+  { Icon: TurnLeftIcon, line1: 'Turn left on', line2: 'Wolfson Street', dist: '80 M' },
+  { Icon: GoStraightIcon, line1: 'Arriving at', line2: 'destination', dist: '20 M' },
+] as const
+const STEP_TIMES = [3000, 6500, 9500] // ms after walk starts to advance to next step
 
 /**
  * Walking route, drawn in the map layer's own coordinate space (393×682),
@@ -135,6 +145,8 @@ const MY_PHOTO = 'https://i.pravatar.cc/150?u=me'
  * Dots are "eaten" Pac-Man style as the walker (me — my photo) advances; the
  * mask reveals only the segment ahead of the walker.
  */
+const MY_PHOTO = 'https://i.pravatar.cc/150?u=me'
+
 function DottedRoute({ pts }: { pts: Pt[] }) {
   const forward = pointsToPath(pts)
   const reversed = pointsToPath([...pts].reverse())
@@ -145,9 +157,6 @@ function DottedRoute({ pts }: { pts: Pt[] }) {
       viewBox="0 0 393 682"
     >
       <defs>
-        <clipPath id="walker-clip">
-          <circle cx="0" cy="0" r="13" />
-        </clipPath>
         <mask id="route-eat">
           <path
             d={reversed}
@@ -169,6 +178,9 @@ function DottedRoute({ pts }: { pts: Pt[] }) {
             />
           </path>
         </mask>
+        <clipPath id="walker-clip">
+          <circle r="18" />
+        </clipPath>
       </defs>
 
       {/* Dots on the route, masked so only the part ahead of the walker shows */}
@@ -182,19 +194,11 @@ function DottedRoute({ pts }: { pts: Pt[] }) {
         mask="url(#route-eat)"
       />
 
-      {/* Walker (me) — my photo, moving along the route toward the destination */}
+      {/* Walker — my avatar circle, moves along the route */}
       <g>
         <animateMotion dur={WALK_DUR} repeatCount="indefinite" path={forward} />
-        <circle r="15" fill="white" stroke="rgba(0,0,0,0.25)" strokeWidth="1.5" />
-        <image
-          href={MY_PHOTO}
-          x="-13"
-          y="-13"
-          width="26"
-          height="26"
-          clipPath="url(#walker-clip)"
-          preserveAspectRatio="xMidYMid slice"
-        />
+        <circle r="21" fill="#3b82f6" stroke="white" strokeWidth="3" />
+        <image href={MY_PHOTO} x="-18" y="-18" width="36" height="36" clipPath="url(#walker-clip)" />
       </g>
     </svg>
   )
@@ -229,6 +233,8 @@ export default function Navigate() {
       // They give me nav.get; they want from me nav.give.
       gives: { resource: nav.get.resource, amount: nav.get.amount },
       wants: { resource: nav.give.resource, amount: nav.give.amount },
+      distanceMeters: 650,
+      exchangeCount: 0,
     }
     return [{ ...MARKERS[0], user: synthetic }, ...MARKERS.slice(1)]
   }, [nav])
@@ -259,6 +265,14 @@ export default function Navigate() {
     const t = setTimeout(() => navigate('/arrived'), 12000)
     return () => clearTimeout(t)
   }, [mode, navigate])
+
+  // Advance turn-by-turn instructions as the walk progresses.
+  const [navStep, setNavStep] = useState(0)
+  useEffect(() => {
+    if (!isWalking) { setNavStep(0); return }
+    const timers = STEP_TIMES.map((ms, i) => setTimeout(() => setNavStep(i + 1), ms))
+    return () => timers.forEach(clearTimeout)
+  }, [isWalking])
 
   function startWalking() {
     if (!selected || !give || !get) return
@@ -322,14 +336,15 @@ export default function Navigate() {
           </div>
         )}
 
-        {/* Me — always shown at my position (while walking the moving walker
-            represents me instead, so hide this static one) */}
+        {/* Me — circular avatar at my position (hidden while walking, the moving walker takes over) */}
         {!isWalking && (
           <div
-            className="absolute -translate-x-1/2 -translate-y-1/2 p-[3px] rounded-full bg-white shadow-[0_2px_8px_rgba(0,0,0,0.35)] pointer-events-none"
+            className="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none"
             style={{ left: ROUTE_POINTS[0].x, top: ROUTE_POINTS[0].y }}
           >
-            <Avatar name="You" size={42} seed="me" photo={MY_PHOTO} />
+            <div className="p-[3px] rounded-full bg-[#3b82f6] shadow-[0_2px_8px_rgba(0,0,0,0.4)]">
+              <Avatar name="Me" size={42} seed="me" photo={MY_PHOTO} />
+            </div>
           </div>
         )}
 
@@ -447,21 +462,26 @@ export default function Navigate() {
         {/* Walking content */}
         {isWalking && (
           <>
-            {/* Turn instructions card */}
-            <div className="absolute left-[18px] right-[18px] top-[18px] h-[91px] bg-black/[0.06] rounded-[20px] flex items-center px-[20px] gap-[14px]">
-              <div className="w-[49px] h-[49px] flex items-center justify-center text-black">
-                <TurnLeftIcon size={36} />
-              </div>
-              <div className="flex-1">
-                <div className="text-[18px] font-semibold text-black leading-tight">
-                  Turn Left to
+            {/* Turn instructions card — updates as walker advances along route */}
+            {(() => {
+              const step = NAV_STEPS[navStep]
+              return (
+                <div className="absolute left-[18px] right-[18px] top-[18px] h-[91px] bg-black/[0.06] rounded-[20px] flex items-center px-[20px] gap-[14px]">
+                  <div className="w-[49px] h-[49px] flex items-center justify-center text-black">
+                    <step.Icon size={36} />
+                  </div>
+                  <div className="flex-1">
+                    <div className="text-[18px] font-semibold text-black leading-tight">
+                      {step.line1}
+                    </div>
+                    <div className="text-[18px] font-semibold text-black leading-tight">
+                      {step.line2}
+                    </div>
+                    <div className="text-[13px] text-black/55 mt-[3px]">In {step.dist}</div>
+                  </div>
                 </div>
-                <div className="text-[18px] font-semibold text-black leading-tight">
-                  Wolfson street
-                </div>
-                <div className="text-[13px] text-black/55 mt-[3px]">In 80 M</div>
-              </div>
-            </div>
+              )
+            })()}
 
             {/* Time + Exit row */}
             <div className="absolute left-[18px] right-[18px] top-[118px] h-[53px] flex items-center justify-between px-[14px]">

@@ -1,14 +1,14 @@
-import { useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import BottomTabBar from '../../components/BottomTabBar'
 import GlassPill from '../../components/GlassPill'
 import NotificationsBell from '../../components/NotificationsBell'
 import DotRing from './DotRing'
 import ExchangeCard from './ExchangeCard'
+import EditableExchangeCard from './EditableExchangeCard'
 import RequestSheet from './RequestSheet'
-import { loadExchanges, loadNegotiations, loadResourceLevels } from './exchanges'
+import { loadExchanges, loadNegotiations, loadResourceLevels, type ResourceLevels } from './exchanges'
 
-const MY_PHOTO = 'https://i.pravatar.cc/150?u=me'
 import {
   ArrowRightIcon,
   FireIcon,
@@ -132,9 +132,43 @@ type DragState = {
 
 export default function Home() {
   const navigate = useNavigate()
-  const [exchanges] = useState(loadExchanges)
+  const location = useLocation()
+  const prevLevels = (location.state as { prevLevels?: ResourceLevels } | null)?.prevLevels
+  const currentLevels = loadResourceLevels()
+
+  const [exchanges, setExchanges] = useState(loadExchanges)
   const [negotiations] = useState(loadNegotiations)
-  const [levels] = useState(loadResourceLevels)
+  const [displayLevels, setDisplayLevels] = useState<ResourceLevels>(prevLevels ?? currentLevels)
+
+  // Animate gauges from old levels to new levels after an exchange completion
+  useEffect(() => {
+    if (!prevLevels) return
+    const from = prevLevels
+    const to = currentLevels
+    const duration = 1500
+    let rafId: number
+    let startTime: number | null = null
+
+    function tick(now: number) {
+      if (startTime === null) startTime = now
+      const t = Math.min((now - startTime) / duration, 1)
+      const eased = 1 - (1 - t) ** 3 // easeOutCubic
+      setDisplayLevels({
+        power: Math.round(from.power + (to.power - from.power) * eased),
+        fuel: Math.round(from.fuel + (to.fuel - from.fuel) * eased),
+      })
+      if (t < 1) rafId = requestAnimationFrame(tick)
+    }
+
+    const timerId = window.setTimeout(() => {
+      rafId = requestAnimationFrame(tick)
+    }, 500)
+
+    return () => {
+      window.clearTimeout(timerId)
+      cancelAnimationFrame(rafId)
+    }
+  }, [])
   // Open the drawer on load when there are offers to show.
   const hasOffers = exchanges.length > 0 || negotiations.length > 0
   const [progress, setProgress] = useState(hasOffers ? 1 : 0) // 0 = closed, 1 = open
@@ -142,12 +176,26 @@ export default function Home() {
   const [expanded, setExpanded] = useState(false)
   const [dragging, setDragging] = useState(false)
   const [requestSheet, setRequestSheet] = useState<'Power' | 'Fuel' | null>(null)
+  const [expandedExchangeId, setExpandedExchangeId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'requests' | 'negotiations'>(
     exchanges.length === 0 && negotiations.length > 0
       ? 'negotiations'
       : 'requests',
   )
   const drag = useRef<DragState | null>(null)
+
+  function toggleExchangeExpand(id: string) {
+    setExpandedExchangeId((prev) => {
+      const next = prev === id ? null : id
+      if (next !== null) {
+        setExpanded(true)
+        setProgress(1)
+      } else {
+        setExpanded(false)
+      }
+      return next
+    })
+  }
 
   function onPointerDown(e: React.PointerEvent) {
     ;(e.currentTarget as Element).setPointerCapture(e.pointerId)
@@ -236,7 +284,7 @@ export default function Home() {
       <ResourceCard
         kind="power"
         label="Power"
-        percent={levels.power}
+        percent={displayLevels.power}
         remaining="12H Left"
         progress={progress}
         dragging={dragging}
@@ -245,7 +293,7 @@ export default function Home() {
       <ResourceCard
         kind="fuel"
         label="Fuel"
-        percent={levels.fuel}
+        percent={displayLevels.fuel}
         remaining="4H Left"
         requestActive
         progress={progress}
@@ -304,14 +352,16 @@ export default function Home() {
           >
             {activeTab === 'requests'
               ? exchanges.map((ex) => (
-                  <ExchangeCard
+                  <EditableExchangeCard
                     key={ex.id}
-                    name="You"
-                    photo={MY_PHOTO}
-                    seed="me"
-                    give={ex.give}
-                    get={ex.get}
-                    status={ex.status}
+                    exchange={ex}
+                    isExpanded={expandedExchangeId === ex.id}
+                    onToggle={() => toggleExchangeExpand(ex.id)}
+                    onSaved={() => {
+                      setExchanges(loadExchanges())
+                      setExpandedExchangeId(null)
+                      setExpanded(false)
+                    }}
                   />
                 ))
               : negotiations.map((ng) => (
@@ -352,10 +402,11 @@ export default function Home() {
       {requestSheet !== null && (
         <RequestSheet
           key={requestSheet}
-          defaultResource={requestSheet}
           onClose={() => setRequestSheet(null)}
         />
       )}
+
+
     </div>
   )
 }

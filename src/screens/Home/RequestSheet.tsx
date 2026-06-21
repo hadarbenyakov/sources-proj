@@ -32,20 +32,20 @@ function ResourceIcon({ r, size = 17 }: { r: Resource; size?: number }) {
 }
 
 type Props = {
-  defaultResource: Resource
   onClose: () => void
 }
 
-export default function RequestSheet({ defaultResource, onClose }: Props) {
+export default function RequestSheet({ onClose }: Props) {
   const navigate = useNavigate()
-  const [selected, setSelected] = useState<Resource>(defaultResource)
+  const [selected, setSelected] = useState<Resource | null>(null)
   const [value, setValue] = useState('0')
   const [entered, setEntered] = useState(false)
   const [exiting, setExiting] = useState(false)
   const [dragY, setDragY] = useState(0)
   const [dragging, setDragging] = useState(false)
   const dragRef = useRef<{ startY: number } | null>(null)
-  const unit = UNITS[selected]
+  const unit = selected ? UNITS[selected] : ''
+  const locked = selected === null
 
   // Enter animation
   useEffect(() => {
@@ -71,7 +71,7 @@ export default function RequestSheet({ defaultResource, onClose }: Props) {
   function next() {
     onClose()
     navigate('/receive-request', {
-      state: { give: { resource: selected, amount: value } },
+      state: { get: { resource: selected, amount: value } },
     })
   }
 
@@ -156,7 +156,7 @@ export default function RequestSheet({ defaultResource, onClose }: Props) {
 
         {/* Question */}
         <div className="absolute left-0 right-0 top-[119px] text-center">
-          <span className="text-[18px] font-semibold text-sheetText">What do you give?</span>
+          <span className="text-[18px] font-semibold text-sheetText">What do you want to get?</span>
         </div>
 
         {/* Resource chips */}
@@ -179,16 +179,24 @@ export default function RequestSheet({ defaultResource, onClose }: Props) {
           })}
         </div>
 
-        {/* Value display */}
-        <div className="absolute left-[23px] right-[23px] top-[213px] h-[136px] rounded-card bg-black/[0.07] flex items-center justify-center">
+        {/* Value display — disabled until chip selected */}
+        <div
+          className={`absolute left-[23px] right-[23px] top-[213px] h-[136px] rounded-card bg-black/[0.07] flex items-center justify-center transition-opacity ${
+            locked ? 'opacity-30' : 'opacity-100'
+          }`}
+        >
           <div className="flex items-baseline gap-[10px]">
             <span className="text-[42px] font-bold text-sheetText/85 leading-none">{value}</span>
             <span className="text-[15px] font-medium text-sheetText/55">{unit}</span>
           </div>
         </div>
 
-        {/* Keypad */}
-        <div className="absolute left-[41px] right-[41px] top-[390px] grid grid-cols-3 gap-[10px]">
+        {/* Keypad — disabled until chip selected */}
+        <div
+          className={`absolute left-[41px] right-[41px] top-[390px] grid grid-cols-3 gap-[10px] transition-opacity ${
+            locked ? 'opacity-30 pointer-events-none' : 'opacity-100'
+          }`}
+        >
           {KEYS.map((k) => (
             <button
               key={k}
@@ -201,11 +209,14 @@ export default function RequestSheet({ defaultResource, onClose }: Props) {
           ))}
         </div>
 
-        {/* Next button */}
+        {/* Next button — disabled until chip selected */}
         <button
           type="button"
           onClick={next}
-          className="absolute left-[23px] right-[23px] top-[630px] h-[48px] rounded-pill bg-accent text-white text-[16px] font-semibold"
+          disabled={locked}
+          className={`absolute left-[23px] right-[23px] top-[630px] h-[48px] rounded-pill text-white text-[16px] font-semibold transition-opacity ${
+            locked ? 'bg-accent opacity-30 cursor-not-allowed' : 'bg-accent'
+          }`}
         >
           Next
         </button>
