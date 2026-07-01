@@ -105,10 +105,14 @@ export function loadActiveNavigation(): ActiveNavigation | null {
 export type ResourceLevels = { power: number; fuel: number }
 
 const LEVELS_KEY = 'resourceLevels'
-const DEFAULT_LEVELS: ResourceLevels = { power: 78, fuel: 19 }
+const DEFAULT_LEVELS: ResourceLevels = { power: 78, fuel: 10 }
 
 export function loadResourceLevels(): ResourceLevels {
   return loadJSON<ResourceLevels>(LEVELS_KEY, DEFAULT_LEVELS)
+}
+
+export function saveResourceLevels(levels: ResourceLevels): void {
+  saveJSON(LEVELS_KEY, levels)
 }
 
 // How much each received unit raises the matching gauge (percentage points).

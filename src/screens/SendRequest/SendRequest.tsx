@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import AnimatedNumber from '../../components/AnimatedNumber'
 import StatusPill from '../../components/StatusPill'
 import {
   BackspaceIcon,
@@ -55,9 +56,12 @@ export default function SendRequest({ mode = 'give' }: Props) {
   const unit = selected ? UNITS[selected] : ''
   const locked = mode !== 'describe' && selected === null
 
-  // Animate in/out only on the first step (opened via the "+" button).
+  // Animate in only on the first step (opened via the "+" button).
   const [entered, setEntered] = useState(mode !== 'get')
-  const [exiting, setExiting] = useState(false)
+  // Drag-to-dismiss: the sheet follows the finger down, and a far enough pull
+  // exits the whole flow.
+  const [dragY, setDragY] = useState(0)
+  const [dragging, setDragging] = useState(false)
   useEffect(() => {
     if (mode !== 'get') return
     const r = requestAnimationFrame(() => setEntered(true))
@@ -77,11 +81,33 @@ export default function SendRequest({ mode = 'give' }: Props) {
   }
 
   function close() {
-    if (mode === 'get') {
-      setExiting(true)
-      setTimeout(() => navigate('/home'), 340)
+    // Slide the sheet down out of view, then leave the flow.
+    setDragging(false)
+    setDragY(820)
+    window.setTimeout(() => navigate('/home'), 360)
+  }
+
+  // Drag the sheet (from the top strip) downward to dismiss the flow.
+  const dragRef = useRef<{ startY: number; lastY: number } | null>(null)
+  function onDragDown(e: React.PointerEvent) {
+    dragRef.current = { startY: e.clientY, lastY: e.clientY }
+    ;(e.currentTarget as Element).setPointerCapture(e.pointerId)
+    setDragging(true)
+  }
+  function onDragMove(e: React.PointerEvent) {
+    const s = dragRef.current
+    if (!s) return
+    s.lastY = e.clientY
+    setDragY(Math.max(0, e.clientY - s.startY))
+  }
+  function onDragUp() {
+    const s = dragRef.current
+    dragRef.current = null
+    if (s && s.lastY - s.startY > 120) {
+      close()
     } else {
-      navigate('/home')
+      setDragging(false)
+      setDragY(0)
     }
   }
 
@@ -146,51 +172,62 @@ export default function SendRequest({ mode = 'give' }: Props) {
       {/* Modal sheet */}
       <div
         className="absolute left-0 right-0 top-[130px] bottom-0 bg-sheet text-sheetText rounded-t-[40px] shadow-[0_-4px_20px_rgba(0,0,0,0.18)]"
-        style={mode === 'get' ? {
-          transform: entered && !exiting ? 'translateY(0)' : 'translateY(100%)',
-          transition: 'transform 400ms cubic-bezier(0.34, 1.56, 0.64, 1)',
-        } : undefined}
+        style={{
+          transform:
+            mode === 'get' && !entered
+              ? 'translateY(100%)'
+              : `translateY(${dragY}px)`,
+          transition: dragging
+            ? 'none'
+            : 'transform 400ms cubic-bezier(0.34, 1.56, 0.64, 1)',
+        }}
       >
-        {/* Drag handle */}
-        <div className="absolute left-1/2 -translate-x-1/2 top-[10px] w-[51px] h-[4px] rounded-full bg-black/20 pointer-events-none" />
+        {/* Drag-to-dismiss strip (the X sits above it and stays tappable) */}
+        <div
+          className="absolute left-0 right-0 top-0 h-[64px] touch-none cursor-grab"
+          onPointerDown={onDragDown}
+          onPointerMove={onDragMove}
+          onPointerUp={onDragUp}
+          onPointerCancel={onDragUp}
+        >
+          <div className="absolute left-1/2 -translate-x-1/2 top-[10px] w-[51px] h-[4px] rounded-full bg-black/20" />
+        </div>
 
-        {/* Title */}
+        {/* Title row — Back (left, from step 2 on) · Send Request (center) · X (right) */}
+        {mode !== 'get' && (
+          <button
+            type="button"
+            onClick={back}
+            aria-label="Back"
+            className="absolute left-[20px] top-[18px] w-[34px] h-[34px] flex items-center justify-center text-sheetText/70 hover:text-sheetText"
+          >
+            <ChevronLeftIcon size={18} />
+          </button>
+        )}
         <div className="absolute left-0 right-0 top-[24px] text-center">
           <span className="text-[20px] font-semibold text-sheetText">
             Send Request
           </span>
         </div>
-
-        {/* Inner card */}
-        <div className="absolute left-[14px] right-[14px] top-[66px] h-[631px] bg-[#dcdcdc] rounded-[27px]" />
-
-        {/* Keypad frame (only in quantity modes) */}
-        {mode !== 'describe' && (
-          <div className="absolute left-[23px] right-[23px] top-[370px] h-[258px] bg-[#f1f1f1] rounded-[20px]" />
-        )}
-
-        {/* Back button — always shown so both steps look identical */}
-        <button
-          type="button"
-          onClick={back}
-          aria-label="Back"
-          className="absolute left-[27px] top-[80px] w-[34px] h-[34px] flex items-center justify-center text-sheetText/70 hover:text-sheetText"
-        >
-          <ChevronLeftIcon size={16} />
-        </button>
-
-        {/* X close */}
         <button
           type="button"
           onClick={close}
           aria-label="Close"
-          className="absolute right-[18px] top-[80px] w-[38px] h-[38px] flex items-center justify-center text-sheetText/70 hover:text-sheetText"
+          className="absolute right-[16px] top-[16px] w-[38px] h-[38px] flex items-center justify-center text-sheetText/70 hover:text-sheetText"
         >
           <XIcon size={18} />
         </button>
 
+        {/* Inner card — question + chips + value */}
+        <div className="absolute left-[14px] right-[14px] top-[75px] h-[283px] bg-[#dcdcdc] rounded-[27px]" />
+
+        {/* Keypad frame (only in quantity modes) */}
+        {mode !== 'describe' && (
+          <div className="absolute left-[23px] right-[23px] top-[367px] h-[259px] bg-[#f1f1f1] rounded-[20px]" />
+        )}
+
         {/* Question */}
-        <div className="absolute left-0 right-0 top-[129px] text-center">
+        <div className="absolute left-0 right-0 top-[98px] text-center">
           <span className="text-[18px] font-semibold text-sheetText">
             {question}
           </span>
@@ -200,7 +237,7 @@ export default function SendRequest({ mode = 'give' }: Props) {
         {mode !== 'describe' ? (
           <>
             {/* Resource chips */}
-            <div className="absolute left-1/2 -translate-x-1/2 top-[171px] flex items-center gap-[8px]">
+            <div className="absolute left-1/2 -translate-x-1/2 top-[140px] flex items-center gap-[8px]">
               {RESOURCES.map((r) => {
                 const isSel = selected === r
                 return (
@@ -223,13 +260,13 @@ export default function SendRequest({ mode = 'give' }: Props) {
 
             {/* Value display — disabled until a chip is selected */}
             <div
-              className={`absolute left-[23px] right-[23px] top-[223px] h-[136px] rounded-card bg-black/[0.07] flex items-center justify-center transition-opacity ${
+              className={`absolute left-[23px] right-[23px] top-[190px] h-[150px] rounded-card bg-black/[0.07] flex items-center justify-center transition-opacity ${
                 locked ? 'opacity-30' : 'opacity-100'
               }`}
             >
               <div className="flex items-baseline gap-[10px]">
                 <span className="text-[42px] font-bold text-sheetText/85 leading-none">
-                  {value}
+                  <AnimatedNumber value={value} />
                 </span>
                 <span className="text-[15px] font-medium text-sheetText/55">
                   {unit}
@@ -241,7 +278,7 @@ export default function SendRequest({ mode = 'give' }: Props) {
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="absolute left-[23px] right-[23px] top-[171px] h-[458px] rounded-card bg-black/[0.12] p-[18px] text-[15px] text-sheetText placeholder:text-sheetText/40 resize-none outline-none border-0"
+            className="absolute left-[23px] right-[23px] top-[140px] h-[440px] rounded-card bg-black/[0.12] p-[18px] text-[15px] text-sheetText placeholder:text-sheetText/40 resize-none outline-none border-0"
             placeholder=""
           />
         )}
@@ -249,7 +286,7 @@ export default function SendRequest({ mode = 'give' }: Props) {
         {/* Keypad (only in quantity modes) — disabled until a chip is selected */}
         {mode !== 'describe' && (
           <div
-            className={`absolute left-[41px] right-[41px] top-[390px] grid grid-cols-3 gap-[10px] transition-opacity ${
+            className={`absolute left-[41px] right-[41px] top-[388px] grid grid-cols-3 gap-[10px] transition-opacity ${
               locked ? 'opacity-30 pointer-events-none' : 'opacity-100'
             }`}
           >
@@ -266,10 +303,10 @@ export default function SendRequest({ mode = 'give' }: Props) {
           </div>
         )}
 
-        {/* Bottom action — Next button or swipe-to-send strip */}
+        {/* Bottom action — full-width Next / swipe-to-send (Back is the chevron) */}
         {mode === 'describe' ? (
           <div
-            className="absolute left-[23px] right-[23px] top-[632px] h-[60px] flex items-center justify-center text-sheetText/65 text-[14px] font-medium select-none cursor-pointer hover:text-sheetText/90"
+            className="absolute left-[23px] right-[23px] top-[637px] h-[48px] flex items-center justify-center text-sheetText/65 text-[14px] font-medium select-none cursor-pointer hover:text-sheetText/90"
             onPointerDown={onSwipeDown}
             onPointerMove={onSwipeMove}
             onPointerUp={onSwipeUp}
@@ -283,8 +320,8 @@ export default function SendRequest({ mode = 'give' }: Props) {
             type="button"
             onClick={next}
             disabled={locked}
-            className={`absolute left-[23px] right-[23px] top-[640px] h-[48px] rounded-pill text-white text-[16px] font-semibold transition-opacity ${
-              locked ? 'bg-accent opacity-30 cursor-not-allowed' : 'bg-accent'
+            className={`absolute left-[23px] right-[23px] top-[637px] h-[48px] rounded-pill text-white text-[16px] font-semibold transition-opacity ${
+              locked ? 'bg-black opacity-30 cursor-not-allowed' : 'bg-black'
             }`}
           >
             Next

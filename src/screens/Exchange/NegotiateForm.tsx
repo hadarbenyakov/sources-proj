@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import AnimatedNumber from '../../components/AnimatedNumber'
 import Avatar from '../../components/Avatar'
 import {
   FireIcon,
@@ -10,7 +11,7 @@ import {
   WaterDropIcon,
   XIcon,
 } from '../Home/icons'
-import type { ExchangeUser, Resource } from './data'
+import { offerBlurb, type ExchangeUser, type Resource } from './data'
 
 const UNIT_LABEL: Record<Resource, string> = {
   Power: 'KWh',
@@ -62,7 +63,7 @@ function StepperCard({
     <div className="flex-1 flex flex-col items-center gap-[4px] min-w-0">
       <div
         className={`w-full flex flex-col items-center gap-[22px] pt-[24px] pb-[36px] px-[7px] rounded-[15px] ${
-          isAccent ? 'bg-[#f75f19]' : 'bg-black/[0.10]'
+          isAccent ? 'bg-black' : 'bg-black/[0.10]'
         }`}
       >
         <span className={`text-[16px] ${isAccent ? 'text-[#ececec]' : 'text-[#575757]'}`}>
@@ -76,7 +77,7 @@ function StepperCard({
                 isAccent ? 'text-[#ececec]' : 'text-black'
               }`}
             >
-              {format(value, isFloat)}
+              <AnimatedNumber value={format(value, isFloat)} />
             </span>
             <span
               className={`text-[16px] font-medium ${
@@ -142,6 +143,7 @@ export default function NegotiateForm({
   // Swipe-right gesture (tap also works as a desktop fallback)
   const swipeRef = useRef<{ startX: number; startY: number; moved: boolean } | null>(null)
   function onSwipeDown(e: React.PointerEvent) {
+    e.stopPropagation()
     swipeRef.current = { startX: e.clientX, startY: e.clientY, moved: false }
     ;(e.currentTarget as Element).setPointerCapture(e.pointerId)
   }
@@ -166,7 +168,7 @@ export default function NegotiateForm({
         type="button"
         onClick={onClose}
         aria-label="Close"
-        className="absolute right-[12px] top-[19px] w-[38px] h-[38px] flex items-center justify-center rounded-full bg-black/[0.08] text-black/70 hover:text-black z-10"
+        className="absolute right-[12px] top-[11px] w-[38px] h-[38px] flex items-center justify-center rounded-full bg-black/[0.08] text-black/70 hover:text-black z-10"
       >
         <XIcon size={18} />
       </button>
@@ -181,7 +183,7 @@ export default function NegotiateForm({
               {user.fullName}
             </span>
             <span className="text-[12px] text-[#595959] leading-[1.4]">
-              From my solar stepup. Transfer before {user.availableUntil}
+              {offerBlurb(user)}
             </span>
           </div>
         </div>

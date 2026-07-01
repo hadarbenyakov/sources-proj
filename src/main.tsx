@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { HashRouter } from 'react-router-dom'
 import App from './App'
+import { resetAppData } from './lib/storage'
 // Fonts from Figma: Plus Jakarta Sans (primary) + Inter (a few small labels).
 import '@fontsource/plus-jakarta-sans/400.css'
 import '@fontsource/plus-jakarta-sans/500.css'
@@ -12,7 +13,9 @@ import '@fontsource/inter/400.css'
 import '@fontsource/montserrat-alternates/600.css'
 import './styles/globals.css'
 
-localStorage.clear()
+// A hard page refresh starts the demo fresh — clear any persisted offers/levels.
+// (In-app navigation is SPA and never reloads this module, so it keeps state.)
+resetAppData()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

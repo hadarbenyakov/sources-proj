@@ -119,3 +119,38 @@ function build(prefix: string, count: number, nameOffset: number): ExchangeUser[
 
 export const FRIENDS: ExchangeUser[] = build('f', 24, 0)
 export const NEIGHBORS: ExchangeUser[] = build('n', 18, 24)
+
+// A short, resource-aware blurb for the person's offer. A few variants per
+// resource keep the list from reading identically; the variant is picked
+// deterministically from the user id so it's stable across renders.
+const BLURBS: Record<Resource, string[]> = {
+  Power: [
+    'Spare power from my rooftop solar',
+    'Extra charge banked from a sunny day',
+    'My batteries are topped up — happy to share',
+  ],
+  Fuel: [
+    'Extra fuel from my reserve cans',
+    'Filled up before the shortage — some to spare',
+    'A few liters left in my jerrycan',
+  ],
+  Water: [
+    'Clean water from my filtered supply',
+    'Stocked up — plenty of water to share',
+    'Fresh water, ready for pickup',
+  ],
+  Meals: [
+    'Home-cooked meals, made too many',
+    'Warm meals to spare from tonight',
+    'Cooked extra — come grab a plate',
+  ],
+}
+
+export function offerBlurb(user: ExchangeUser): string {
+  const resource = user.gives?.resource
+  const until = user.availableUntil
+  if (!resource) return `Reach out before ${until}`
+  const variants = BLURBS[resource]
+  const line = variants[hash(user.id) % variants.length]
+  return `${line}. Transfer before ${until}`
+}

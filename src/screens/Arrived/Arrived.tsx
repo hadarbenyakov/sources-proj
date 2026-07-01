@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import BottomTabBar from '../../components/BottomTabBar'
 import StatusPill from '../../components/StatusPill'
 import {
   BellIcon,
@@ -12,8 +11,6 @@ import {
   WaterDropIcon,
 } from '../Home/icons'
 import { applyExchangeGain, loadActiveNavigation, loadResourceLevels } from '../Home/exchanges'
-
-const ORANGE = '#f46a2b'
 
 const UNIT_LABEL: Record<string, string> = {
   Fuel: 'L',
@@ -115,10 +112,7 @@ export default function Arrived() {
 
               <SwapIcon size={24} className="text-black shrink-0" />
 
-              <div
-                className="flex-1 flex flex-col items-center gap-[2px] py-[6px] rounded-[15px]"
-                style={{ backgroundColor: ORANGE }}
-              >
+              <div className="flex-1 flex flex-col items-center gap-[2px] py-[6px] rounded-[15px] bg-black">
                 <span className="text-[12px] font-semibold text-white">You Gets</span>
                 <div className="flex items-end gap-[2px]">
                   {resIcon(get.resource, 22, 'text-white')}
@@ -134,8 +128,7 @@ export default function Arrived() {
           <button
             type="button"
             onClick={confirmExchange}
-            className="w-full h-[50px] rounded-[61px] flex items-center justify-center text-white text-[16px] font-medium"
-            style={{ backgroundColor: ORANGE }}
+            className="w-full h-[50px] rounded-[61px] flex items-center justify-center text-white text-[16px] font-medium bg-accent"
           >
             Confirm Exchange Complete
           </button>
@@ -150,9 +143,6 @@ export default function Arrived() {
           </button>
         </div>
       </div>
-
-      {/* Bottom tab bar */}
-      <BottomTabBar active="map" />
     </div>
   )
 }

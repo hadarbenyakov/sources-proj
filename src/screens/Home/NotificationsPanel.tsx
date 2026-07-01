@@ -41,8 +41,8 @@ function ExchangeSummary({ give, get }: { give: Entry; get: Entry }) {
       </div>
       <SwapIcon size={18} className="text-white/55" />
       <div className="flex items-center gap-[5px]">
-        {resIcon(get.resource, 20, 'text-accent')}
-        <span className="text-[22px] font-bold text-accent leading-none">
+        {resIcon(get.resource, 20, 'text-white')}
+        <span className="text-[22px] font-bold text-white leading-none">
           {fmt(get)}
         </span>
       </div>
@@ -102,7 +102,7 @@ export default function NotificationsPanel({
             </p>
           ) : (
             notifications.map((n) => (
-              <div key={n.id} className="bg-card rounded-[20px] px-[10px] py-[14px]">
+              <div key={n.id} className="bg-[#2a2a2a] rounded-[28px] px-[12px] py-[14px]">
                 <div className="flex items-center gap-[10px]">
                   <Avatar
                     name={n.userName}
@@ -126,7 +126,7 @@ export default function NotificationsPanel({
                 <button
                   type="button"
                   onClick={() => onNavigate(n)}
-                  className="mt-[12px] w-full h-[40px] rounded-pill bg-accent text-white text-[14px] font-semibold flex items-center justify-center gap-[7px]"
+                  className="mt-[12px] w-full h-[40px] rounded-pill bg-white text-black text-[14px] font-semibold flex items-center justify-center gap-[7px]"
                 >
                   <MapIcon size={17} />
                   Navigate

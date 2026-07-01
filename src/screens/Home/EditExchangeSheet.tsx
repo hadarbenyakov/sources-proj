@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import AnimatedNumber from '../../components/AnimatedNumber'
 import {
   FireIcon,
   LightningIcon,
@@ -104,7 +105,7 @@ export default function EditExchangeSheet({ exchange, onClose, onSaved }: Props)
             <div className="flex-1 bg-[#dcdcdc] rounded-[22px] px-[12px] py-[16px] flex flex-col items-center gap-[8px]">
               <span className="text-[11px] font-semibold text-black/45">You give</span>
               <div className="flex items-baseline gap-[3px]">
-                <span className="text-[36px] font-bold text-black/80 leading-none">{giveAmount}</span>
+                <span className="text-[36px] font-bold text-black/80 leading-none"><AnimatedNumber value={giveAmount} /></span>
                 <span className="text-[13px] font-medium text-black/40 mb-[3px]">{UNITS[giveRes]}</span>
               </div>
               <div className="flex gap-[8px]">
@@ -135,10 +136,10 @@ export default function EditExchangeSheet({ exchange, onClose, onSaved }: Props)
             </div>
 
             {/* Get — accent */}
-            <div className="flex-1 bg-accent rounded-[22px] px-[12px] py-[16px] flex flex-col items-center gap-[8px]">
+            <div className="flex-1 bg-black rounded-[22px] px-[12px] py-[16px] flex flex-col items-center gap-[8px]">
               <span className="text-[11px] font-semibold text-white/65">You get</span>
               <div className="flex items-baseline gap-[3px]">
-                <span className="text-[36px] font-bold text-white leading-none">{getAmount}</span>
+                <span className="text-[36px] font-bold text-white leading-none"><AnimatedNumber value={getAmount} /></span>
                 <span className="text-[13px] font-medium text-white/55 mb-[3px]">{UNITS[getRes]}</span>
               </div>
               <div className="flex gap-[8px]">
@@ -188,7 +189,7 @@ export default function EditExchangeSheet({ exchange, onClose, onSaved }: Props)
             <button
               type="button"
               onClick={save}
-              className="flex-1 h-[46px] rounded-pill bg-accent text-white text-[14px] font-semibold"
+              className="flex-1 h-[46px] rounded-pill bg-black text-white text-[14px] font-semibold"
             >
               Save
             </button>

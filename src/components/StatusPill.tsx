@@ -19,10 +19,11 @@ export default function StatusPill(props: Props) {
   const levels = loadResourceLevels()
   const power = props.power ?? levels.power
   const fuel = props.fuel ?? levels.fuel
+  const ringColor = (pct: number) => pct > 50 ? '#ffffff' : '#ff5f1f'
   return (
     <GlassPill className="h-[43px] w-[204px] justify-center gap-[23px]">
       <div className="flex items-center gap-[4px]">
-        <DotRing percent={power} size={23} dots={12} dotSize={2.8} />
+        <DotRing percent={power} size={23} dots={12} dotSize={2.8} activeColor={ringColor(power)} />
         <div className="flex items-center gap-[6px] font-bold leading-none text-white">
           <span className="text-[18px]">P</span>
           <span className="text-[14px]">{power}%</span>
@@ -34,7 +35,7 @@ export default function StatusPill(props: Props) {
           size={23}
           dots={12}
           dotSize={2.8}
-          activeColor="#ff5f1f"
+          activeColor={ringColor(fuel)}
         />
         <div className="flex items-center gap-[6px] font-bold leading-none text-white">
           <span className="text-[18px]">F</span>

@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import BottomTabBar from '../../components/BottomTabBar'
 import GlassLayer from '../../components/GlassLayer'
 import NotificationsBell from '../../components/NotificationsBell'
 import DotRing from './DotRing'
@@ -28,6 +27,15 @@ const DRAWER_RANGE = DRAWER_CLOSED_TOP - DRAWER_OPEN_TOP // 177
 const DRAWER_EXPANDED_TOP = 150
 // Gentle, delightful overshoot — drawers settle with a soft little bounce.
 const SNAP = '380ms cubic-bezier(0.34, 1.56, 0.64, 1)'
+
+// Gauge fill animation cadence (shared so the drawer can wait for it to finish).
+const RING_DOTS = 14
+const PER_DOT_MS = 110
+function ringFillMs(from: number, to: number) {
+  const toCount = Math.round((to / 100) * RING_DOTS)
+  const fromCount = Math.round((from / 100) * RING_DOTS)
+  return Math.max(1, Math.abs(toCount - fromCount) * PER_DOT_MS)
+}
 
 type CardKind = 'power' | 'fuel'
 
@@ -58,16 +66,13 @@ function ResourceCard({
   // stable endpoints avoids the restart-every-frame jump.
   const [ringPercent, setRingPercent] = useState(fromPercent)
   useEffect(() => {
-    const RING_DOTS = 14
-    const PER_DOT_MS = 85
-    const toCount = Math.round((percent / 100) * RING_DOTS)
-    const fromCount = Math.round((fromPercent / 100) * RING_DOTS)
-    const dur = Math.max(1, Math.abs(toCount - fromCount) * PER_DOT_MS)
+    const dur = ringFillMs(fromPercent, percent)
     let raf = 0
     const start = performance.now()
     const tick = (now: number) => {
       const t = Math.min(1, (now - start) / dur)
-      setRingPercent(fromPercent + (percent - fromPercent) * t) // linear cadence
+      const eased = 1 - (1 - t) ** 2
+      setRingPercent(fromPercent + (percent - fromPercent) * eased)
       if (t < 1) raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
@@ -144,7 +149,7 @@ function ResourceCard({
           dots={14}
           dotSize={17}
           activeColor={ringColor}
-          trackColor="#2C2C2C"
+          idleColor="#333333"
         />
       </div>
     </div>
@@ -171,13 +176,12 @@ export default function Home() {
   const [exchanges, setExchanges] = useState(loadExchanges)
   const [negotiations] = useState(loadNegotiations)
 
-  // Open the drawer on load when there are offers to show.
-  const hasOffers = exchanges.length > 0 || negotiations.length > 0
-  const [progress, setProgress] = useState(hasOffers ? 1 : 0) // 0 = closed, 1 = open
+  // The drawer starts closed and stays closed until the user drags it open.
+  const [progress, setProgress] = useState(0) // 0 = closed, 1 = open
   // Third level: lifted above the cards. Only reachable by a second drag.
   const [expanded, setExpanded] = useState(false)
   const [dragging, setDragging] = useState(false)
-  const [requestSheet, setRequestSheet] = useState<'Power' | 'Fuel' | null>(null)
+  const [requestSheet, setRequestSheet] = useState<'Power' | 'Fuel' | '' | null>(null)
   const [expandedExchangeId, setExpandedExchangeId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'requests' | 'negotiations'>(
     exchanges.length === 0 && negotiations.length > 0
@@ -299,7 +303,7 @@ export default function Home() {
         label="Fuel"
         percent={currentLevels.fuel}
         fromPercent={prevLevels?.fuel ?? 0}
-        remaining="4H Left"
+        remaining="1H Left"
         progress={progress}
         dragging={dragging}
         onRequest={() => setRequestSheet('Fuel')}
@@ -329,7 +333,7 @@ export default function Home() {
             <button
               type="button"
               onPointerDown={stopPointer}
-              onClick={() => navigate('/send-request')}
+              onClick={() => setRequestSheet('')}
               className="w-9 h-9 rounded-full bg-[#dedede] text-[#757575] flex items-center justify-center"
             >
               <PlusIcon strokeWidth={2} />
@@ -404,14 +408,11 @@ export default function Home() {
         )}
       </div>
 
-      {/* Bottom tab bar (always on top of drawer) */}
-      <BottomTabBar active="home" />
-
       {/* Request sheet — slides up from bottom over Home */}
       {requestSheet !== null && (
         <RequestSheet
           key={requestSheet}
-          defaultResource={requestSheet}
+          defaultResource={requestSheet || undefined}
           onClose={() => setRequestSheet(null)}
         />
       )}

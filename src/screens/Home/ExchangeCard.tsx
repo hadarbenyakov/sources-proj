@@ -29,7 +29,7 @@ function Chip({ label, entry, accent }: { label: string; entry: Entry; accent?: 
   return (
     <div
       className={`w-[130px] h-[59px] rounded-[14px] flex flex-col items-center justify-center ${
-        accent ? 'bg-accent' : 'bg-black/[0.12]'
+        accent ? 'bg-black' : 'bg-black/[0.12]'
       }`}
     >
       <span

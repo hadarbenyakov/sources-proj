@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import AnimatedNumber from '../../components/AnimatedNumber'
 import Avatar from '../../components/Avatar'
 import {
   FireIcon,
@@ -35,7 +36,7 @@ function Chip({ label, entry, accent }: { label: string; entry: Entry; accent?: 
   return (
     <div
       className={`w-[130px] h-[59px] rounded-[14px] flex flex-col items-center justify-center ${
-        accent ? 'bg-accent' : 'bg-black/[0.12]'
+        accent ? 'bg-black' : 'bg-black/[0.12]'
       }`}
     >
       <span className={`text-[13px] font-medium leading-none ${accent ? 'text-white' : 'text-black/70'}`}>
@@ -97,117 +98,127 @@ export default function EditableExchangeCard({
   })
 
   return (
-    <div className="bg-[#dcdcdc] rounded-[24px] overflow-hidden">
-      {/* Header — always visible, tap to toggle expand */}
+    <div
+      className={`bg-[#dfdfdf] rounded-[32px] overflow-hidden ${
+        isExpanded ? 'flex flex-col flex-1 min-h-0' : ''
+      }`}
+    >
+      {/* Header — laid out exactly like the neighbor offer card, plus the tag */}
       <button
         type="button"
-        className="w-full flex items-center gap-[9px] px-[14px] pt-[14px] pb-[10px] text-left"
+        className="w-full flex items-center gap-[9px] px-[16px] pt-[12px] pb-[8px] text-left"
         onClick={onToggle}
       >
-        <Avatar name="You" size={36} seed="me" photo={MY_PHOTO} />
-        <span className="text-[15px] font-semibold text-black flex-1">You</span>
-        {!isExpanded && (
-          <span className="px-[12px] py-[5px] rounded-pill bg-[#f4e7b8] text-[13px] font-medium text-[#7a6321]">
-            {exchange.status}
-          </span>
-        )}
+        <Avatar name="You" size={28} seed="me" photo={MY_PHOTO} />
+        <div className="flex flex-col gap-[2px] font-inter flex-1 min-w-0">
+          <span className="text-[16px] font-medium text-black leading-none">You</span>
+          {exchange.description && (
+            <span className="text-[12px] text-[#595959] leading-[1.4]">
+              {exchange.description}
+            </span>
+          )}
+        </div>
+        <span className="self-start shrink-0 px-[12px] py-[5px] rounded-pill bg-[#f4e7b8] text-[13px] font-medium text-[#7a6321]">
+          {exchange.status}
+        </span>
       </button>
 
-      {/* Collapsed: chips row */}
+      {/* Collapsed: offer chips — centered like the neighbor offer card */}
       <div style={expandStyle(!isExpanded)}>
         <div className="overflow-hidden">
-          <div className="flex items-center justify-between px-[14px] pt-[2px] pb-[18px]">
+          <div className="flex items-center justify-center gap-[7px] px-[20px] pt-[4px] pb-[64px]">
             <Chip label="Give" entry={{ resource: giveRes, amount: giveAmount }} />
-            <SwapIcon size={20} className="text-black" />
+            <SwapIcon size={20} className="text-black shrink-0" />
             <Chip label="Gets" entry={{ resource: getRes, amount: getAmount }} accent />
           </div>
         </div>
       </div>
 
-      {/* Expanded: edit UI */}
-      <div style={expandStyle(isExpanded)}>
-        <div className="overflow-hidden">
-          <div className="flex flex-col gap-[12px] px-[14px] pt-[4px] pb-[14px]">
+      {/* Expanded: edit UI — fills the drawer to the bottom when open */}
+      <div
+        className={isExpanded ? 'flex-1 min-h-0' : ''}
+        style={expandStyle(isExpanded)}
+      >
+        <div className="overflow-hidden h-full">
+          <div className="flex flex-col gap-[14px] px-[14px] pt-[8px] pb-[28px] h-full">
 
-            {/* Title */}
-            <span className="text-[12px] font-semibold text-black/40">
-              Edit Exchange Request
-            </span>
-
-            {/* Mini exchange cards */}
-            <div className="flex items-center gap-[8px]">
+            {/* Exchange cards — bigger boxes; the spacer below absorbs slack so
+                nothing ever overlaps the description. */}
+            <div className="flex items-stretch gap-[10px]">
               {/* Give — gray */}
-              <div className="flex-1 bg-white/50 rounded-[18px] px-[10px] py-[12px] flex flex-col items-center gap-[6px]">
-                <span className="text-[10px] font-semibold text-black/40">You give</span>
-                <div className="flex items-baseline gap-[2px]">
-                  <span className="text-[30px] font-bold text-black/80 leading-none">{giveAmount}</span>
-                  <span className="text-[12px] font-medium text-black/35 mb-[2px]">{UNITS[giveRes]}</span>
+              <div className="flex-1 bg-white/50 rounded-[22px] px-[12px] py-[20px] flex flex-col items-center justify-center gap-[16px]">
+                <span className="text-[14px] font-semibold text-black/40">You give</span>
+                <div className="flex items-baseline gap-[3px]">
+                  <span className="text-[46px] font-bold text-black/80 leading-none"><AnimatedNumber value={giveAmount} /></span>
+                  <span className="text-[16px] font-medium text-black/35 mb-[3px]">{UNITS[giveRes]}</span>
                 </div>
-                <div className="flex gap-[6px]">
+                <div className="flex gap-[12px]">
                   <button
                     type="button"
                     onClick={() => setGiveAmount(stepAmount(giveAmount, -1))}
-                    className="w-[36px] h-[36px] rounded-full bg-white flex items-center justify-center text-black shadow-sm active:bg-black/5"
+                    className="w-[44px] h-[44px] rounded-full bg-white flex items-center justify-center text-black shadow-sm active:bg-black/5"
                   >
-                    <MinusIcon size={13} />
+                    <MinusIcon size={16} />
                   </button>
                   <button
                     type="button"
                     onClick={() => setGiveAmount(stepAmount(giveAmount, 1))}
-                    className="w-[36px] h-[36px] rounded-full bg-white flex items-center justify-center text-black shadow-sm active:bg-black/5"
+                    className="w-[44px] h-[44px] rounded-full bg-white flex items-center justify-center text-black shadow-sm active:bg-black/5"
                   >
-                    <PlusIcon size={13} />
+                    <PlusIcon size={16} />
                   </button>
                 </div>
-                <div className="flex items-center gap-[3px] text-[10px] text-black/40">
-                  <ResIcon r={giveRes} size={11} />
+                <div className="flex items-center gap-[4px] text-[14px] text-black/40">
+                  <ResIcon r={giveRes} size={16} />
                   <span>{giveRes}</span>
                 </div>
               </div>
 
-              <div className="text-black/25 shrink-0">
-                <SwapIcon size={16} />
+              <div className="text-black/25 shrink-0 self-center">
+                <SwapIcon size={20} />
               </div>
 
-              {/* Get — accent */}
-              <div className="flex-1 bg-accent rounded-[18px] px-[10px] py-[12px] flex flex-col items-center gap-[6px]">
-                <span className="text-[10px] font-semibold text-white/60">You get</span>
-                <div className="flex items-baseline gap-[2px]">
-                  <span className="text-[30px] font-bold text-white leading-none">{getAmount}</span>
-                  <span className="text-[12px] font-medium text-white/50 mb-[2px]">{UNITS[getRes]}</span>
+              {/* Get — black */}
+              <div className="flex-1 bg-black rounded-[22px] px-[12px] py-[20px] flex flex-col items-center justify-center gap-[16px]">
+                <span className="text-[14px] font-semibold text-white/60">You get</span>
+                <div className="flex items-baseline gap-[3px]">
+                  <span className="text-[46px] font-bold text-white leading-none"><AnimatedNumber value={getAmount} /></span>
+                  <span className="text-[16px] font-medium text-white/50 mb-[3px]">{UNITS[getRes]}</span>
                 </div>
-                <div className="flex gap-[6px]">
+                <div className="flex gap-[12px]">
                   <button
                     type="button"
                     onClick={() => setGetAmount(stepAmount(getAmount, -1))}
-                    className="w-[36px] h-[36px] rounded-full bg-white/90 flex items-center justify-center text-black shadow-sm active:bg-black/10"
+                    className="w-[44px] h-[44px] rounded-full bg-white/90 flex items-center justify-center text-black shadow-sm active:bg-black/10"
                   >
-                    <MinusIcon size={13} />
+                    <MinusIcon size={16} />
                   </button>
                   <button
                     type="button"
                     onClick={() => setGetAmount(stepAmount(getAmount, 1))}
-                    className="w-[36px] h-[36px] rounded-full bg-white/90 flex items-center justify-center text-black shadow-sm active:bg-black/10"
+                    className="w-[44px] h-[44px] rounded-full bg-white/90 flex items-center justify-center text-black shadow-sm active:bg-black/10"
                   >
-                    <PlusIcon size={13} />
+                    <PlusIcon size={16} />
                   </button>
                 </div>
-                <div className="flex items-center gap-[3px] text-[10px] text-white/60">
-                  <ResIcon r={getRes} size={11} />
+                <div className="flex items-center gap-[4px] text-[14px] text-white/60">
+                  <ResIcon r={getRes} size={16} />
                   <span>{getRes}</span>
                 </div>
               </div>
             </div>
 
+            {/* Flexible spacer — soaks up the extra height of the stretched card */}
+            <div className="flex-1 min-h-[8px]" />
+
             {/* Description */}
-            <div className="flex flex-col gap-[5px]">
-              <label className="text-[11px] font-medium text-black/40">Description</label>
+            <div className="flex flex-col gap-[6px] -mt-[20px]">
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Add a note…"
                 rows={2}
-                className="w-full rounded-[12px] bg-white/50 px-[12px] py-[9px] text-[13px] text-black placeholder:text-black/25 resize-none outline-none"
+                className="w-full rounded-[12px] bg-white/50 px-[12px] py-[10px] text-[14px] text-black placeholder:text-black/25 resize-none outline-none"
               />
             </div>
 
@@ -215,7 +226,7 @@ export default function EditableExchangeCard({
             <button
               type="button"
               onClick={save}
-              className="w-full h-[44px] rounded-pill bg-accent text-white text-[14px] font-semibold"
+              className="w-full h-[48px] rounded-pill bg-black text-white text-[15px] font-semibold"
             >
               Save
             </button>
@@ -224,7 +235,7 @@ export default function EditableExchangeCard({
             <button
               type="button"
               onClick={remove}
-              className="w-full text-center text-[13px] font-medium text-red-500"
+              className="w-full text-center text-[14px] font-medium text-red-500"
             >
               Delete
             </button>

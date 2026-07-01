@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import AnimatedNumber from '../../components/AnimatedNumber'
 import {
   BackspaceIcon,
   FireIcon,
@@ -22,7 +23,15 @@ const UNITS: Record<Resource, string> = {
 
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', 'del'] as const
 
-const SNAP = '400ms cubic-bezier(0.34, 1.56, 0.64, 1)'
+// Mirrors the Exchange drawer: animate `top` so the sheet's bottom is always
+// fixed to the screen edge — gray fills upward naturally, no black at the bottom.
+const OPEN_TOP    = 130   // px from top of 852-canvas when fully open
+const RESTING_TOP = 790   // barely-there strip at bottom before entry fires
+const ENTER_MS    = 480
+const EXIT_MS     = 280
+const ENTER_SNAP  = `top ${ENTER_MS}ms cubic-bezier(0.34, 1.56, 0.64, 1)`
+const EXIT_SNAP   = `top ${EXIT_MS}ms ease-in`
+const SCRIM_SNAP  = '350ms ease'
 
 function ResourceIcon({ r, size = 17 }: { r: Resource; size?: number }) {
   if (r === 'Fuel') return <FireIcon size={size} />
@@ -43,7 +52,7 @@ export default function RequestSheet({ defaultResource, onClose }: Props) {
   const [value, setValue] = useState('0')
   const [entered, setEntered] = useState(false)
   const [exiting, setExiting] = useState(false)
-  const [dragY, setDragY] = useState(0)
+  const [dragTop, setDragTop] = useState(OPEN_TOP)
   const [dragging, setDragging] = useState(false)
   const dragRef = useRef<{ startY: number } | null>(null)
   const unit = selected ? UNITS[selected] : ''
@@ -57,7 +66,7 @@ export default function RequestSheet({ defaultResource, onClose }: Props) {
 
   function close() {
     setExiting(true)
-    setTimeout(onClose, 340)
+    setTimeout(onClose, EXIT_MS + 20)
   }
 
   function press(k: (typeof KEYS)[number]) {
@@ -77,17 +86,18 @@ export default function RequestSheet({ defaultResource, onClose }: Props) {
     })
   }
 
-  // Drag handle gestures
+  // Drag handle gestures — track `top` directly (same as Exchange drawer)
   function onPointerDown(e: React.PointerEvent) {
     dragRef.current = { startY: e.clientY }
     ;(e.currentTarget as Element).setPointerCapture(e.pointerId)
+    setDragTop(OPEN_TOP)
     setDragging(true)
   }
 
   function onPointerMove(e: React.PointerEvent) {
     if (!dragRef.current) return
     const dy = e.clientY - dragRef.current.startY
-    setDragY(Math.max(0, dy)) // only drag downward
+    setDragTop(Math.max(OPEN_TOP, OPEN_TOP + dy)) // only drag downward from open
   }
 
   function onPointerUp(e: React.PointerEvent) {
@@ -95,17 +105,24 @@ export default function RequestSheet({ defaultResource, onClose }: Props) {
     const dy = e.clientY - dragRef.current.startY
     dragRef.current = null
     setDragging(false)
-    setDragY(0)
+    setDragTop(OPEN_TOP)
     if (dy > 80) close()
   }
 
-  const sheetTransform = !entered || exiting
-    ? 'translateY(100%)'
-    : dragging
-      ? `translateY(${dragY}px)`
-      : 'translateY(0)'
+  // Use `top` (not translateY) so `bottom-0` stays fixed → gray always at screen edge
+  const sheetTop = exiting
+    ? 862
+    : !entered
+      ? RESTING_TOP
+      : dragging
+        ? dragTop
+        : OPEN_TOP
 
-  const sheetTransition = dragging ? 'none' : `transform ${SNAP}`
+  const sheetTransition = dragging
+    ? 'none'
+    : exiting
+      ? EXIT_SNAP
+      : ENTER_SNAP
 
   return (
     <div className="absolute inset-0 z-50">
@@ -114,15 +131,16 @@ export default function RequestSheet({ defaultResource, onClose }: Props) {
         className="absolute inset-0 bg-black/40"
         style={{
           opacity: entered && !exiting ? 1 : 0,
-          transition: `opacity ${SNAP}`,
+          transition: `opacity ${SCRIM_SNAP}`,
         }}
         onClick={close}
       />
 
-      {/* Sheet */}
+      {/* Sheet — top animates like the Exchange drawer; bottom-0 stays fixed
+           so the gray permanently fills to the screen edge during the slide */}
       <div
-        className="absolute left-0 right-0 top-[130px] bottom-0 bg-sheet text-sheetText rounded-t-[40px] shadow-[0_-4px_20px_rgba(0,0,0,0.18)] will-change-transform"
-        style={{ transform: sheetTransform, transition: sheetTransition }}
+        className="absolute left-0 right-0 bottom-0 bg-sheet text-sheetText rounded-t-[40px] shadow-[0_-4px_20px_rgba(0,0,0,0.18)]"
+        style={{ top: sheetTop, transition: sheetTransition }}
       >
         {/* Drag handle area */}
         <div
@@ -188,7 +206,7 @@ export default function RequestSheet({ defaultResource, onClose }: Props) {
           }`}
         >
           <div className="flex items-baseline gap-[10px]">
-            <span className="text-[42px] font-bold text-sheetText/85 leading-none">{value}</span>
+            <span className="text-[42px] font-bold text-sheetText/85 leading-none"><AnimatedNumber value={value} /></span>
             <span className="text-[15px] font-medium text-sheetText/55">{unit}</span>
           </div>
         </div>
@@ -217,7 +235,7 @@ export default function RequestSheet({ defaultResource, onClose }: Props) {
           onClick={next}
           disabled={locked}
           className={`absolute left-[23px] right-[23px] top-[630px] h-[48px] rounded-pill text-white text-[16px] font-semibold transition-opacity ${
-            locked ? 'bg-accent opacity-30 cursor-not-allowed' : 'bg-accent'
+            locked ? 'bg-black opacity-30 cursor-not-allowed' : 'bg-black'
           }`}
         >
           Next

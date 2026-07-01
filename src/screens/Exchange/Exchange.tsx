@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Avatar from '../../components/Avatar'
-import BottomTabBar from '../../components/BottomTabBar'
 import GlassLayer from '../../components/GlassLayer'
 import NotificationsBell from '../../components/NotificationsBell'
 import StatusPill from '../../components/StatusPill'
@@ -14,11 +13,18 @@ import {
   SwapIcon,
   WaterDropIcon,
 } from '../Home/icons'
-import { FRIENDS, NEIGHBORS, type ExchangeUser, type Resource } from './data'
+import { FRIENDS, NEIGHBORS, offerBlurb, type ExchangeUser, type Resource } from './data'
 import NegotiateForm, { type SendPayload } from './NegotiateForm'
 import { addNegotiation, addNotification } from '../Home/exchanges'
 
 type Tab = 'friends' | 'neighbors'
+
+type SortMode = 'default' | 'distance' | 'exchanges'
+const SORT_OPTIONS: { id: SortMode; label: string }[] = [
+  { id: 'default', label: 'Default' },
+  { id: 'distance', label: 'Distance' },
+  { id: 'exchanges', label: 'Most Exchanged' },
+]
 
 // The sheet is anchored to the bottom; these are its `top` values per state.
 const SHEET_CLOSED_TOP = 749
@@ -32,6 +38,28 @@ function ResourceIcon({ r, size = 22, className }: { r: Resource; size?: number;
   if (r === 'Power') return <LightningIcon size={size} className={className} />
   if (r === 'Water') return <WaterDropIcon size={size} className={className} />
   return <MealIcon size={size} className={className} />
+}
+
+// Up/down arrows glyph for the sort control.
+function SortIcon({ size = 22, className }: { size?: number; className?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
+      <path
+        d="M7 4v15M7 19l-3-3M7 19l3-3"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M17 20V5M17 5l-3 3M17 5l3 3"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
 }
 
 const UNIT_LABEL: Record<Resource, string> = {
@@ -62,7 +90,7 @@ function OfferChip({
   return (
     <div
       className={`w-[130px] h-[59px] rounded-[14px] flex flex-col items-center justify-center ${
-        isAccent ? 'bg-accent' : 'bg-black/[0.12]'
+        isAccent ? 'bg-black' : 'bg-black/[0.12]'
       }`}
     >
       <span
@@ -108,7 +136,7 @@ function DrawerHeader({ user }: { user: ExchangeUser }) {
           {user.fullName}
         </span>
         <span className="text-[12px] text-[#595959] leading-[1.4]">
-          From my solar stepup. Transfer before {user.availableUntil}
+          {offerBlurb(user)}
         </span>
       </div>
     </div>
@@ -136,15 +164,15 @@ function SelectedUserDrawer({ user }: { user: ExchangeUser }) {
   )
 }
 
-type SortMode = 'distance' | 'exchanges' | null
-
 export default function Exchange() {
   const navigate = useNavigate()
   const [tab, setTab] = useState<Tab>('friends')
   const [query, setQuery] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [sortMode, setSortMode] = useState<SortMode>(null)
+  // Single-select sort, plus an independent "Active Only" filter.
+  const [sortMode, setSortMode] = useState<SortMode>('default')
   const [activeOnly, setActiveOnly] = useState(false)
+  const [sortOpen, setSortOpen] = useState(false)
   // Drawer states: peek (user info + chips) → expanded (the negotiation form).
   // The form is the same page — just the drawer grown to full height.
   const [expanded, setExpanded] = useState(false)
@@ -152,16 +180,22 @@ export default function Exchange() {
   const pool = tab === 'friends' ? FRIENDS : NEIGHBORS
 
   const users = (() => {
-    let list = query
-      ? pool.filter((u) => u.name.toLowerCase().includes(query.toLowerCase()))
-      : [...pool]
+    // Only people with an active offer are shown.
+    let list = pool.filter((u) => u.gives && u.wants)
+    if (query) list = list.filter((u) => u.name.toLowerCase().includes(query.toLowerCase()))
     if (activeOnly) list = list.filter((u) => u.online)
     if (sortMode === 'distance') list = [...list].sort((a, b) => a.distanceMeters - b.distanceMeters)
-    if (sortMode === 'exchanges') list = [...list].sort((a, b) => b.exchangeCount - a.exchangeCount)
+    else if (sortMode === 'exchanges') list = [...list].sort((a, b) => b.exchangeCount - a.exchangeCount)
     return list
   })()
 
   const selected = selectedId ? pool.find((u) => u.id === selectedId) ?? null : null
+
+  // Tapping anywhere outside the drawer drops it back down (deselects).
+  function closeDrawer() {
+    setSelectedId(null)
+    setExpanded(false)
+  }
 
   function onAvatarClick(u: ExchangeUser) {
     setExpanded(false)
@@ -191,6 +225,7 @@ export default function Exchange() {
   const [dragging, setDragging] = useState(false)
   function onDrawerPointerDown(e: React.PointerEvent) {
     if (!selectedId) return
+    e.stopPropagation()
     dragRef.current = { startY: e.clientY, id: selectedId }
     ;(e.currentTarget as Element).setPointerCapture(e.pointerId)
     setDragging(true)
@@ -236,7 +271,10 @@ export default function Exchange() {
   const opacityT = dragging ? 'none' : 'opacity 240ms ease'
 
   return (
-    <div className="w-[393px] h-[852px] relative bg-app text-textPrimary overflow-hidden select-none">
+    <div
+      className="w-[393px] h-[852px] relative bg-app text-textPrimary overflow-hidden select-none"
+      onClick={selected ? closeDrawer : undefined}
+    >
       {/* Header */}
       <div className="absolute left-[27px] top-[66px] w-[340px] h-[43px] flex items-center justify-between">
         <button type="button" className="text-textPrimary p-1 -ml-1">
@@ -284,51 +322,92 @@ export default function Exchange() {
         />
       </div>
 
-      {/* Sort / filter chips */}
-      <div className="absolute left-[19px] right-[19px] top-[251px] flex items-center gap-[8px]">
-        {(
-          [
-            { id: 'distance', label: 'Distance' },
-            { id: 'exchanges', label: 'Most Exchanged' },
-          ] as { id: SortMode & string; label: string }[]
-        ).map(({ id, label }) => {
-          const active = sortMode === id
-          return (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setSortMode(active ? null : id)}
-              className={`px-[12px] py-[6px] rounded-[30px] text-[12px] font-semibold transition-colors ${
-                active ? 'bg-accent text-white' : 'bg-[#323232] text-white/70'
-              }`}
-            >
-              {label}
-            </button>
-          )
-        })}
+      {/* Sort-by row — the ↓↑ icon opens a card to pick the option */}
+      <div className="absolute left-[26px] right-[24px] top-[253px] flex items-center justify-between">
+        <span className="text-[15px] text-white/70">
+          Sort by{' '}
+          <span className="font-bold text-white">
+            {SORT_OPTIONS.find((s) => s.id === sortMode)!.label}
+          </span>
+        </span>
         <button
           type="button"
-          onClick={() => setActiveOnly((v) => !v)}
-          className={`px-[12px] py-[6px] rounded-[30px] text-[12px] font-semibold transition-colors ${
-            activeOnly ? 'bg-accent text-white' : 'bg-[#323232] text-white/70'
-          }`}
+          aria-label="Sort"
+          onClick={(e) => {
+            e.stopPropagation()
+            setSortOpen((v) => !v)
+          }}
+          className={`p-1 -mr-1 transition-colors ${sortOpen ? 'text-white' : 'text-white/85'}`}
         >
-          Active Only
+          <SortIcon size={22} />
         </button>
       </div>
 
+      {/* Sort card — choose a sort option, plus the Active Only filter */}
+      {sortOpen && (
+        <>
+          <div
+            className="absolute inset-0 z-30"
+            onClick={(e) => {
+              e.stopPropagation()
+              setSortOpen(false)
+            }}
+          />
+          <div className="absolute right-[24px] top-[286px] z-40 w-[210px] rounded-[18px] bg-[#2b2b2b] p-[6px] shadow-[0_8px_24px_rgba(0,0,0,0.4)]">
+            {SORT_OPTIONS.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setSortMode(s.id)
+                }}
+                className={`w-full flex items-center justify-between px-[12px] py-[10px] rounded-[12px] text-[13px] font-medium transition-colors ${
+                  sortMode === s.id ? 'bg-white/10 text-white' : 'text-white/65'
+                }`}
+              >
+                {s.label}
+              </button>
+            ))}
+            <div className="h-px bg-white/10 my-[4px]" />
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                setActiveOnly((v) => !v)
+              }}
+              className={`w-full flex items-center justify-between px-[12px] py-[10px] rounded-[12px] text-[13px] font-medium transition-colors ${
+                activeOnly ? 'bg-white/10 text-white' : 'text-white/65'
+              }`}
+            >
+              Active Only
+            </button>
+          </div>
+        </>
+      )}
+
       {/* Avatar grid */}
       <div
-        className="absolute left-[32px] right-[39px] top-[302px] bottom-0 overflow-y-auto px-[4px] pt-[4px] pb-[280px]"
+        className="absolute left-[16px] right-[16px] top-[300px] bottom-0 overflow-y-auto px-[4px] pt-[4px] pb-[280px]"
         style={{ scrollbarWidth: 'none' }}
       >
-        <div className="grid grid-cols-3 gap-x-[61px] gap-y-[46px]">
-          {users.map((u) => (
+        <div className="grid grid-cols-3 gap-x-[16px] gap-y-[46px]">
+          {users.map((u, i) => {
+            // Per-column stagger: left column (col 0) stays put, middle and right
+            // settle in slightly from the right, one after the other.
+            const col = i % 3
+            return (
             <button
               key={u.id}
               type="button"
-              onClick={() => onAvatarClick(u)}
-              className="w-[64px] flex flex-col items-center"
+              onClick={(e) => {
+                e.stopPropagation()
+                onAvatarClick(u)
+              }}
+              className={`w-full min-w-0 flex flex-col items-center ${
+                col === 0 ? '' : 'anim-avatar-settle'
+              }`}
+              style={col === 0 ? undefined : { animationDelay: `${col * 150}ms` }}
             >
               <Avatar
                 name={u.name}
@@ -341,12 +420,16 @@ export default function Exchange() {
                 <div className="text-[14px] font-medium text-white leading-tight">
                   {u.name}
                 </div>
-                <div className="text-[12px] text-textSecondary leading-tight mt-[2px]">
-                  {u.distance}
-                </div>
+                {u.gives && (
+                  <div className="mt-[4px] flex items-center justify-center gap-[2px] text-[12px] font-bold text-textSecondary leading-tight">
+                    <ResourceIcon r={u.gives.resource} size={16} className="text-textSecondary" />
+                    <span>{u.gives.amount}</span>
+                  </div>
+                )}
               </div>
             </button>
-          ))}
+            )
+          })}
         </div>
       </div>
 
@@ -354,6 +437,7 @@ export default function Exchange() {
           all on this same page (the form just grows the drawer to full height). */}
       <div
         className="absolute left-[5px] right-[5px] bottom-0 bg-sheet rounded-t-[40px] shadow-[0_-4px_20px_rgba(0,0,0,0.18)]"
+        onClick={(e) => e.stopPropagation()}
         style={{
           // Anchored to the bottom; only `top` changes, so the sheet stretches
           // smoothly between peek and form without ever detaching from the base.
@@ -370,7 +454,7 @@ export default function Exchange() {
           onPointerUp={onDrawerPointerUp}
           onPointerCancel={onDrawerPointerUp}
         >
-          <div className="absolute left-1/2 -translate-x-1/2 top-[20px] w-[51px] h-[4px] rounded-full bg-black/20" />
+          <div className="absolute left-1/2 -translate-x-1/2 top-[10px] w-[51px] h-[4px] rounded-full bg-black/20" />
         </div>
 
         {selected && (
@@ -411,9 +495,6 @@ export default function Exchange() {
           </>
         )}
       </div>
-
-      {/* Bottom tab bar */}
-      <BottomTabBar active="swap" />
     </div>
   )
 }

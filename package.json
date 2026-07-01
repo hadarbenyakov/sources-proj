@@ -13,11 +13,13 @@
     "@fontsource/inter": "^5.2.8",
     "@fontsource/montserrat-alternates": "^5.2.8",
     "@fontsource/plus-jakarta-sans": "^5.2.8",
+    "mapbox-gl": "^3.25.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.26.0"
   },
   "devDependencies": {
+    "@types/mapbox-gl": "^3.4.1",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
